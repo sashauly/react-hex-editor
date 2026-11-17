@@ -4,7 +4,7 @@ View and edit binary data in React. This is **sashauly's independently maintaine
 
 [Development documentation and live demo](https://sashauly.github.io/react-hex-editor/) · [API reference](https://sashauly.github.io/react-hex-editor/api/) · [Support/issues](https://github.com/sashauly/react-hex-editor/issues)
 
-The Pages site is prepared locally; remote setup and its first deployment are pending. See [the guide source](site/App.tsx) for current usage and behavior documentation.
+The Pages site contains the development documentation and live demo. The [guide source](site/App.tsx) is also available in the repository.
 
 ## Install this fork
 
