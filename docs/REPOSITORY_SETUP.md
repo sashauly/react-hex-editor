@@ -1,12 +1,28 @@
 # Repository setup
 
-External configuration is pending until the local modernization is reviewed and uploaded. Do not require a guessed check name: observe successful Actions jobs on the actual repository first.
+Use `main` as the only long-lived branch. Open feature PRs directly against main and squash-merge them with a descriptive title. No promotion or synchronization PR is needed.
 
-1. Inspect open PRs, existing rules/protection, explicit branch refs, Actions and Pages/environment settings. Preserve existing work. The planning baseline has only `master`; bootstrap CI there if needed (the temporary push filter permits it).
-2. Rename `master` to `main` through GitHub's branch rename flow. Make `main` the default. Update any PR bases or external references that did not follow the rename. Rename the corresponding local branch, update its upstream, fetch, and refresh origin/HEAD (`git remote set-head origin -a`). Check branch/HEAD status before each operation; do not stash or reset someone else's edits.
-3. Create `develop` from the agreed main baseline. Keep the modernization in a short-lived feature branch targeting develop. Enable squash and merge commits; disable rebase merges to keep the documented workflow clear. Promote through a merge-commit develop -> main PR.
-4. Run `Validate` successfully and inspect actual check runs, including a documentation-only PR to each target. Set active rulesets for `refs/heads/main` and `refs/heads/develop`: require a PR, zero required approvals, resolved conversations, the observed **Validation gate** check, and strict/up-to-date checks. Block force pushes and deletion. No routine bypass, including the owner. Keep linear-history and general restrict-updates rules off. The gate always runs and fails if a required job fails, is cancelled or is unexpectedly skipped. There are no workflow path filters.
-5. Enable Pages with GitHub Actions as the source. Allow only main deployments in the github-pages environment. The validated main push deploys the combined site artifact; develop and PR runs never deploy. The first deployment is a separate setup action. Check the landing page, nested API pages, assets and navigation at <https://sashauly.github.io/react-hex-editor/>.
-6. Verify compliant PR merging, owner policy, default branch, both upstreams, origin/HEAD, CI required checks, Pages environment, badges and explicit links. Remove the temporary master push filter after the rename is verified. Record URLs and actual check names in the implementation report.
+## Merge settings
 
-Manual release tags originate from validated main. Pages deploys development docs automatically and does not create tags or package releases.
+Under Settings -> General -> Pull Requests, enable squash merging and disable merge commits and rebase merging. Set the default squash commit title to the PR title and the message to blank. This produces one useful commit subject per change instead of a generated merge message or a list of intermediate commits.
+
+## Main protection
+
+Keep an active branch ruleset targeting only `refs/heads/main`, with no bypass actors:
+
+- Require a pull request, with zero required approving reviews and resolved conversations.
+- Require the observed **Validation gate** GitHub Actions check and an up-to-date branch.
+- Block force pushes and deletion.
+- Require linear history. Leave general restrict-creations/updates rules off.
+
+`Validate` runs on PRs targeting main and on manual dispatch. One job installs the producer dependencies once, runs the local validation command and tests the four supported React versions in Chromium sequentially. Keep the check name stable so branch protection continues to match. No path filters leave documentation-only PRs pending.
+
+## Pages
+
+Set Settings -> Pages -> Source to GitHub Actions. Restrict the `github-pages` environment to main. The separate **Deploy documentation** workflow builds and deploys the site on main updates; it does not repeat the package and browser validation already required on the PR. Manual deployment is also available from main.
+
+The site is https://sashauly.github.io/react-hex-editor/ and remains labelled development documentation until a release is deliberately prepared. Tags, GitHub package releases and npm publication remain separate manual decisions.
+
+## Retiring the integration branch
+
+After confirming that main contains all integration work and that no PR targets the old branch, remove the integration branch from the protection rules and delete it. Update local tracking refs with `git fetch --prune` and `git remote set-head origin -a`. Do not rewrite published main history without explicit approval.

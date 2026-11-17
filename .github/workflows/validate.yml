@@ -1,21 +1,19 @@
 name: Validate
 on:
-  push:
-    branches: [main, develop, master]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: validate-${{ github.workflow }}-${{ github.ref }}
+  group: validate-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  quality:
-    name: Quality and documentation
+  validate:
+    name: Validation gate
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -25,77 +23,22 @@ jobs:
           cache: npm
       - run: test "$(node --version)" = v26.13.1 && test "$(npm --version)" = 11.20.0
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build:site
-      - run: npm run check:links
-      - run: npm run package
+      - run: npm run validate
+      - run: npx playwright install --with-deps chromium
+      - name: Chromium compatibility
+        run: |
+          for react_version in 16.8.6 16.14.0 17.0.2 18.3.1; do
+            REACT_VERSION="$react_version" npm run test:browser -- --project=chromium || exit 1
+          done
       - uses: actions/upload-artifact@v7
         with:
           name: local-package
           path: artifacts/react-hex-editor-*.tgz
           if-no-files-found: error
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: site-dist
-
-  compatibility:
-    name: React ${{ matrix.react }} / ${{ matrix.browser }}
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { react: "16.8.6", browser: chromium }
-          - { react: "16.14.0", browser: chromium }
-          - { react: "17.0.2", browser: chromium }
-          - { react: "18.3.1", browser: chromium }
-    env:
-      REACT_VERSION: ${{ matrix.react }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: test "$(node --version)" = v26.13.1 && test "$(npm --version)" = 11.20.0
-      - run: npm ci
-      - run: npm run check:package
-      - run: npm run build:site
-      - run: npx playwright install --with-deps ${{ matrix.browser }}
-      - run: npm run test:browser -- --project=${{ matrix.browser }}
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: browser-failure-${{ matrix.react }}-${{ matrix.browser }}
+          name: browser-failure
           path: |
             playwright-report
             test-results
-
-  gate:
-    name: Validation gate
-    if: always()
-    needs: [quality, compatibility]
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Require every validation job
-        env:
-          QUALITY: ${{ needs.quality.result }}
-          COMPATIBILITY: ${{ needs.compatibility.result }}
-        run: test "$QUALITY" = success && test "$COMPATIBILITY" = success
-
-  deploy:
-    name: Deploy development documentation
-    needs: [gate]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/deploy-pages@v4
-        id: deployment

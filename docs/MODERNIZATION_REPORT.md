@@ -25,3 +25,7 @@ The consuming-app runtime/served-asset smoke test remains unfinished: the isolat
 Existing read-only paste/ref-write bypass, endpoint-based selected-range edits, malformed/partial paste handling, truncation, non-byte ASCII and empty/backspace offset cases are documented and preserved for separate decisions.
 
 Artifact: `artifacts/react-hex-editor-0.3.0.tgz` (inherited version, not a fork release). SHA256: `446822b9656de6d8dd787861d3bf023b3e88d60666cd426b9b6fed6b171d314e`. Its 33 runtime/declaration files match the consumer-validated tarball byte-for-byte; only README installation/test instructions changed afterward.
+
+## Workflow simplification
+
+The initial modernization was merged through PRs #1 and #2. The single-maintainer workflow now uses feature PRs directly into main, squash commits named after the PR title, and one validation job per PR. React compatibility runs sequentially in that job. A main update runs only the documentation build/deployment workflow. The original main/develop setup and pending-setup statements above describe the initial handoff snapshot and are superseded by this workflow. Published history is preserved unless explicitly approved for rewriting.
