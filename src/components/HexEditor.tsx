@@ -101,7 +101,7 @@ const reducer = (
   mergeState: HexEditorAction,
 ) => ({ ...prevState, ...mergeState });
 
-const HexEditor: React.RefForwardingComponent<HexEditorHandle, HexEditorProps> = ({
+const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps> = ({
   asciiPlaceholder = <>&nbsp;</>,
   autoFocus = false,
   children,
@@ -173,7 +173,7 @@ const HexEditor: React.RefForwardingComponent<HexEditorHandle, HexEditorProps> =
       showAscii,
       ...state,
     };
-  }, [columns, data, data.length, readOnly, rows, showAscii, state]);
+  }, [columns, data, readOnly, rows, showAscii, state]);
 
   const blur = useCallback(() => {
     if (inputRef.current) {
@@ -265,14 +265,14 @@ const HexEditor: React.RefForwardingComponent<HexEditorHandle, HexEditorProps> =
         inputRef.current.value = selectedValue;
         inputRef.current.setSelectionRange(0, selectedValue.length);
       }
-    } catch (e) {
+    } catch {
       // shrug
     }
   }, [focus, data.length]);
 
   useEffect(() => {
     if (state.selectionAnchor != null) {
-      const handleWindowMouseUp = (_e: MouseEvent) => {
+      const handleWindowMouseUp = () => {
         setState({ selectionAnchor: null });
         focus();
       };
@@ -286,7 +286,6 @@ const HexEditor: React.RefForwardingComponent<HexEditorHandle, HexEditorProps> =
   const setSelectionStart = useCallback((
     offset: number,
     editMode?: EditModeType,
-    _e?: React.MouseEvent,
   ) => {
     const {
       selectionAnchor,
@@ -622,7 +621,7 @@ const HexEditor: React.RefForwardingComponent<HexEditorHandle, HexEditorProps> =
       case editMode === EDIT_MODE_ASCII: {
         if (!readOnly) {
           const key = Keycoder.fromEvent(e.nativeEvent);
-          if (key.isPrintableCharacter && key.charCode != null) {
+          if (key.charCode != null) {
             const value = shiftKey ? key.shift.charCode : key.charCode;
             if (value != null) {
               setValue(selectionEnd, value);

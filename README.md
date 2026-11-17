@@ -1,358 +1,68 @@
 # React Hex Editor
 
-View and edit binary data in React.
+View and edit binary data in React. This is **sashauly's independently maintained fork** of [Keith McKnight's react-hex-editor](https://github.com/kmck/react-hex-editor), preserving its ISC license and original attribution.
 
-## Install
+[Development documentation and live demo](https://sashauly.github.io/react-hex-editor/) · [API reference](https://sashauly.github.io/react-hex-editor/api/) · [Support/issues](https://github.com/sashauly/react-hex-editor/issues)
 
-[yarn][]:
+The Pages site is prepared locally; remote setup and its first deployment are pending. See [the guide source](site/App.tsx) for current usage and behavior documentation.
 
-```bash
-yarn add react-hex-editor
+## Install this fork
+
+The upstream npm package named `react-hex-editor` does **not** install this fork. Until a fork release is available, build an installable tarball:
+
+```sh
+git clone https://github.com/sashauly/react-hex-editor.git
+cd react-hex-editor
+nvm install
+nvm use
+npm ci
+npm run package
+# In your application:
+npm install /path/to/react-hex-editor/artifacts/react-hex-editor-0.3.0.tgz
 ```
 
-[npm][]:
+Version 0.3.0 is inherited upstream metadata, not a new fork release. Versioning and registry publication remain deferred.
 
-```bash
-npm install --save react-hex-editor
-```
+## Use
 
-
-## Usage
-
-This uses `styled-components` for ease of theming. It's a peer dependency, so don't forget to make
-sure it's installed!
-
-```jsx
+```tsx
+import React from 'react';
 import HexEditor from 'react-hex-editor';
 import oneDarkPro from 'react-hex-editor/themes/oneDarkPro';
 
-const YourApp = () => {
-  // `data` contains the bytes to show. It can also be `Uint8Array`!
-  const data = React.useMemo(() => new Array(100).fill(0), []);
-  // If `data` is large, you probably want it to be mutable rather than cloning it over and over.
-  // `nonce` can be used to update the editor when `data` is reference that does not change.
-  const [nonce, setNonce] = useState(0);
-  // The callback facilitates updates to the source data.
-  const handleSetValue = React.useCallback((offset, value) => {
-    data[offset] = value;
-    setNonce(v => (v + 1));
-  }, [data]);
-
-  return (
-    <HexEditor
-      columns={0x10}
-      data={data}
-      nonce={nonce}
-      onSetValue={handleSetValue}
-      theme={{ hexEditor: oneDarkPro }}
-    />
-  )
-};
+export function Example() {
+  const [data, setData] = React.useState(() => new Uint8Array(256));
+  return <div style={{ width: 720, height: 260 }}>
+    <HexEditor data={data} showAscii theme={{ hexEditor: oneDarkPro }}
+      onSetValue={(offset, value) => {
+        setData(previous => {
+          const next = previous.slice();
+          next[offset] = value;
+          return next;
+        });
+      }} />
+  </div>;
+}
 ```
 
-### Custom Styling
+The default export and `UnstyledHexEditor` infer geometry from a sized container. `BaseHexEditor` and `UnstyledBaseHexEditor` require explicit dimensions. All four forward the same ref methods. Use `nonce` to refresh mutable buffers. The editor requests overwrites; the caller owns the data.
 
-If you'd rather provide your own CSS and skip the `styled-components` depenency, that's okay too.
+Support: React `>=16.8.6 <19`, styled-components `^5.3.11`, TypeScript declarations for 5.6.2+, and current Chrome/Edge, Firefox and Safari. CJS, ESM and theme entry points are retained. Known legacy editing limits, including read-only paste/ref writes, are documented in the guide; validate write policy and bounds in your callback.
 
+## Develop
 
-There are a few inline styles baked into the component for the basic functionality, but you're free
-to modify the fonts and colors to suit your tastes. If you'd like to disable the inline styles and
-use an all-CSS solution, pass an empty object for the `inlineStyles` prop.
+Use Node 26.13.1 with bundled npm 11.20.0. Commit `package-lock.json` with dependency changes.
 
-```jsx
-import { UnstyleHexEditor } from 'react-hex-editor';
-
-const YourApp = () => {
-  /* ... */
-
-  return (
-    <UnstyleHexEditor
-      className="your-hex-editor"
-      columns={0x10}
-      data={data.current}
-      inlineStyles={{}} // Optional: override or disable inline styles
-      nonce={nonce}
-      onSetValue={handleSetValue}
-    />
-  )
-};
+```sh
+npm ci
+npm run validate
+npx playwright install --with-deps chromium
+npm run test:browser
+npm run dev
 ```
 
-Refer to [styles.ts](src/utils/styles.ts) for an example of how to style. The permutations of
-combined classnames for each hex editor component really adds up, so you probably want to use a CSS
-preprocessor that supports nesting.
-
-### Explicit Sizing
-
-The default `HexEditor` and `UnstyledHexEditor` components infer as much as necessary to calculate
-various dimensions based on the provided props. Underlying this is a `BaseHexEditor` component that
-needs everything spelled out.
-
-```jsx
-import { BaseHexEditor /* ot UnstyledBaseHexEditor */ } from 'react-hex-editor';
-
-const YourApp = () => {
-  /* ... */
-
-  return (
-    <BaseHexEditor
-      className="your-hex-editor"
-      columns={0x10} // REQUIRED
-      data={data.current}
-      height={500} // REQUIRED
-      nonce={nonce}
-      rowHeight={22} // REQUIRED
-      rows={0x10} // REQUIRED
-      onSetValue={handleSetValue}
-      width={600} // REQUIRED
-    />
-  )
-};
-```
-
-_You probably don't need to use this._
-
-## API
-
-### HexEditor
-
-##### Standard Props
-
-###### `className`
-
-Classname applied to the Hex Editor's root element.
-
-###### `classNames`
-
-Classnames applied to various components of the Hex Editor that can be used for styling.
-
-###### `data` (required)
-
-`Uint8Array` or array of integerss (0-255) to display in the hex editor.
-
-###### `nonce`
-
-If `data` is mutable, update the `nonce` when there is a change so that the editor re-renders
-with the latest data.
-
-###### `onSetValue`
-
-Callback that is invoked with `offset` and `value` when attempting to write a value. Typically,
-you'd want to set `data[offset] = value` here.
-
-
-##### Display Props
-
-###### `showAscii`
-
-Whether to show the ascii representation of the data.
-
-###### `showColumnLabels`
-
-Whether to show a fixed row at the top of the table for column offset labels.
-
-###### `showRowLabels`
-
-Whether to show row offset labels.
-
-###### `highlightColumn`
-
-Set to `true` to add a classname for the currently active column if you want to style it.
-Note: This can lead to degraded performance when there are a lot of rows visible.
-
-###### `formatValue`
-
-Function that takes the byte value and converts it to its ASCII representation. You can override it
-to change the ASCII output.
-
-###### `overscanCount`
-
-Controls the number of rows rendered outside of the viewport. Higher numbers will reduce blank areas
-when scrolling quickly, but may degrade performance.
-
-
-##### Sizing Props (Can be inferred by auto-sizing component)
-
-###### `columns`
-
-Number of columns to display. (Can be inferred by auto-sizing component using width.)
-
-###### `rows`
-
-Number of rows to display. (Can be inferred by auto-sizing component using height.)
-
-###### `width`
-
-Pixel width of the overall hex editor.
-
-###### `height`
-
-Pixel height of the overall hex editor.
-
-###### `rowHeight`
-
-Pixel height of a single row.
-
-###### `byteWidth` (auto-size only)
-
-Pixel width of a single byte.
-
-###### `asciiWidth` (auto-size only)
-
-Pixel width of a single ASCII character.
-
-###### `gutterWidth` (auto-size only)
-
-Pixel width of the gutter between sections.
-
-###### `scrollbarWidth` (auto-size only)
-
-Pixel width of the scrollbar.
-
-
-##### Styling Props
-
-###### `theme.hexEditor` (`styled-components` only)
-
-Includes various keys that are used for fonts and colors of the Hex Editor.
-
-###### `measureStyle` (auto-size only)
-
-Inline styles applied to the sample components used to infer size. Used for making them invisible
-and non-interactive.
-
-Set to `null` to disable the default styles.
-
-###### `inputStyle`
-
-Did you know? There is an input that handles key events, focus, and copy/paste for the Hex Editor!
-These are the inline styles applied to that element that make it invisible and cover the editor.
-
-Set to `null` to disable the default styles
-
-###### `style`
-
-Inline styles applied to the editor root.
-
-###### `inlineStyles`
-
-Inline styles for various editor components.
-
-###### `inlineStyles.ascii`
-
-Inline styles applied to a single ASCII character. Used for setting flexbox alignment.
-
-###### `inlineStyles.asciiValues`
-
-Inline styles applied to the ASCII section of a row. Used for setting flexbox alignment.
-
-###### `inlineStyles.body`
-
-Inline styles applied to Hex Editor body area. Used to force the scrollbar.
-
-###### `inlineStyles.byte`
-
-Inline styles applied to a single byte. Used for setting flexbox alignment.
-
-###### `inlineStyles.byteValues`
-
-Inline styles applied to the byte section of a row. Used for setting flexbox alignment.
-
-###### `inlineStyles.editor`
-
-Inline styles applied to the editor root. Used for setting `position` and the `font-family`.
-
-###### `inlineStyles.gutter`
-
-Inline styles applied to the gutter. Unstyled by default.
-
-###### `inlineStyles.header`
-
-Inline styles applied to Hex Editor header area. Used to force the scrollbar.
-
-###### `inlineStyles.offsetLabel`
-
-Inline styles applied to an offset label. Used for setting flexbox alignment.
-
-###### `inlineStyles.row`
-
-Inline styles applied to a single row. Used for setting flexbox alignment.
-
-
-##### Input Behavior Props
-
-###### `autoFocus`
-
-Set to `true` to focus the Hex Editor on mount.
-
-###### `onBlur`
-
-Callback for when focus is lost.
-
-###### `onFocus`
-
-Callback for when focus is gained.
-
-###### `readOnly`
-
-Set to `true` if the Hex Editor is more of a Hex Viewer.
-
-###### `tabIndex`
-
-Set it, if you want!
-
-
-#### Imperative Interface
-
-The following functions are available is you use a `ref` on the Hex Editor.
-
-###### `blur`
-
-Drops focus from the Hex Editor.
-
-###### `focus`
-
-Takes focus for the Hex Editor.
-
-###### `scrollTo(scrollTop)`
-
-Scroll to the specified pixel offset.
-
-###### `scrollToItem(rowIndex, [align = 'auto'])`
-
-Scroll to the specified row offset. Align is from [react-window] and accepts `'auto'`, `'smart'`,
-`'center'`, `'end'`, or `'start'`.
-
-###### `setSelectionRange(start, [end = start], [direction = null], [takeFocus = false])`
-
-Selects a range in the Hex Editor.
-
-###### `setValue(offset, value)`
-
-Sets a value in the Hex Editor.
-
-
-## @TODO
-
-- Improve documentation
-- Improve clipboard support
-- Undo/redo history
-- Text/byte search
-- Demo page
-
-
-## Contributing
-
-Thank you for your interest! If you find a bug or want to add a new feature, open an issue or create
-a pull request, and we'll figure it out from there.
-
+See [contribution and compatibility instructions](CONTRIBUTING.md), [repository setup](docs/REPOSITORY_SETUP.md) and [manual release instructions](docs/RELEASING.md).
 
 ## License
 
-ISC © [Keith McKnight](https://github.com/kmck)
-
-[yarn]: https://yarnpkg.com/lang/en/docs/install
-
-[npm]: https://docs.npmjs.com/cli/install
-
-[react-window]: https://react-window.now.sh/#/api/FixedSizeList
+ISC © [Keith McKnight](https://github.com/kmck). Original notices are retained in [LICENSE](LICENSE).

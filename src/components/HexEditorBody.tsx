@@ -19,8 +19,8 @@ export interface HexEditorBodyProps {
   className?: string,
   height: number,
   itemRenderer?: React.ComponentType<ListChildComponentProps>,
-  onItemsRendered: (props: ListOnItemsRenderedProps) => any,
-  onScroll?: (props: ListOnScrollProps) => any,
+  onItemsRendered: (props: ListOnItemsRenderedProps) => void,
+  onScroll?: (props: ListOnScrollProps) => void,
   overscanCount: number,
   rowCount: number,
   rowHeight: number,
@@ -29,7 +29,7 @@ export interface HexEditorBodyProps {
   width: number,
 };
 
-const HexEditorBody: React.RefForwardingComponent<List, HexEditorBodyProps> = ({
+const HexEditorBody: React.ForwardRefRenderFunction<List, HexEditorBodyProps> = ({
   children: bodyChildren,
   className = undefined,
   height,
@@ -39,7 +39,6 @@ const HexEditorBody: React.RefForwardingComponent<List, HexEditorBodyProps> = ({
   overscanCount,
   rowCount,
   rowHeight,
-  rows,
   style,
   width,
 }, ref: React.Ref<List>) => {
@@ -48,7 +47,7 @@ const HexEditorBody: React.RefForwardingComponent<List, HexEditorBodyProps> = ({
       return forwardRef(({
         children: listChildren,
         ...props
-      }, ref: React.Ref<HTMLDivElement>) => (
+      }: React.HTMLAttributes<HTMLDivElement>, ref: React.Ref<HTMLDivElement>) => (
         <div ref={ref} {...props}>
           {listChildren}
           {(

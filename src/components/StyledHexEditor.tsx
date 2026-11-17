@@ -11,7 +11,7 @@ import hexEditorStyles from '../utils/styles';
 
 import HexEditor from './HexEditor';
 
-const StyledHexEditor: React.RefForwardingComponent<HexEditorHandle, HexEditorProps> = ({
+const StyledHexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps> = ({
   inlineStyles = EMPTY_INLINE_STYLES,
   ...restProps
 }: HexEditorProps, ref) => (

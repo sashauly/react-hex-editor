@@ -2,6 +2,13 @@
 /node_modules
 /*.log
 /.rpt2_cache
-# rollup build output
+# generated library, site and validation output
 /dist
 /themes
+/site-dist
+/artifacts
+/playwright-report
+/test-results
+/.compat
+/.codebase-index
+/.integration
