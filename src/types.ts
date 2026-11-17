@@ -56,11 +56,14 @@ export interface BaseHexEditorProps {
   nonce?: number | string,
   onBlur?: (e: React.FocusEvent) => void,
   onFocus?: (e: React.FocusEvent) => void,
-  /** Requests an overwrite; the caller must accept it into data and re-render. */
+  /** Requests an in-bounds byte overwrite; the caller must accept it into data and re-render.
+   * Range edits start at the lower bound. Delete/Backspace zero the selected bytes.
+   * Editing never inserts or removes bytes.
+   */
   onSetValue?: (offset: number, value: number) => void,
   onItemsRendered?: (props: ListOnItemsRenderedProps) => void,
   overscanCount?: number,
-  /** Blocks keyboard writes. See the guide for existing paste/ref limitations. */
+  /** Blocks keyboard and paste writes. Imperative setValue can still request writes. */
   readOnly?: boolean,
   showAscii?: boolean,
   showColumnLabels?: boolean,
@@ -99,13 +102,16 @@ export interface HexEditorHandle {
   focus(): void,
   scrollTo(scrollTop: number): void,
   scrollToItem(rowIndex: number, align?: Align): void,
-  /** Select a range with an exclusive end. A collapsed range is the cursor. */
+  /** Select a range with an exclusive end. A collapsed range is the cursor.
+   * Typing and paste overwrite from the lower bound, regardless of direction.
+   */
   setSelectionRange(
     start: number | null,
     end?: number | null,
     direction?: SelectionDirectionType | null,
     takeFocus?: boolean,
   ): void,
+  /** Request an overwrite. Offsets outside data or non-integer offsets are ignored. */
   setValue(offset: number, value: number): void,
 };
 

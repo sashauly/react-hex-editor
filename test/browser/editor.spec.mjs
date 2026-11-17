@@ -110,6 +110,55 @@ test("click, Shift extension, bidirectional drag and pending-nibble cancellation
     await page.mouse.up();
   }
 });
+
+for (const direction of ["forward", "backward"]) {
+  test(`${direction} ranges use fixed-length overwrites and zero fills`, async ({ page }) => {
+    const selectRange = async () => {
+      await byte(page, direction === "forward" ? 1 : 4).click();
+      for (let i = 0; i < 3; i++) {
+        await input(page).press(direction === "forward" ? "Shift+ArrowRight" : "Shift+ArrowLeft");
+      }
+      await expect(input(page)).toHaveValue("010203");
+    };
+    await selectRange();
+    await input(page).press("a");
+    await expect(page.getByTestId("write")).toHaveText("none");
+    await input(page).press("b");
+    await expect(page.getByTestId("bytes")).toHaveText("00 ab 02 03 04 05 06 07");
+    for (const clear of ["Delete", "Backspace"]) {
+      await page.getByRole("button", { name: "Reset", exact: true }).click();
+      await selectRange();
+      await input(page).press(clear);
+      await expect(page.getByTestId("bytes")).toHaveText("00 00 00 00 04 05 06 07");
+      await expect(byte(page, 1)).toHaveClass(/cursor/);
+      await expect(page.getByTestId("length")).toHaveText("259");
+    }
+  });
+
+  for (const pane of ["hex", "ASCII"]) {
+    test(`${pane} native paste overwrites from a ${direction} selection's start`, async ({ page }) => {
+      if (pane === "ASCII") {
+        await page.getByRole("button", { name: "ASCII sample", exact: true }).click();
+        await page.getByRole("button", { name: "Focus editor", exact: true }).click();
+        await input(page).press("Tab");
+      }
+      await page.getByRole("button", { name: "Select first four", exact: true }).click();
+      await input(page).press(`${shortcut}+c`);
+      await byte(page, direction === "forward" ? 1 : 3).click();
+      // Clicking a byte activates hex mode; restore ASCII before selecting.
+      if (pane === "ASCII") await input(page).press("Tab");
+      for (let i = 0; i < 2; i++) {
+        await input(page).press(direction === "forward" ? "Shift+ArrowRight" : "Shift+ArrowLeft");
+      }
+      await input(page).press(`${shortcut}+v`);
+      await expect(page.getByTestId("bytes")).toHaveText(
+        pane === "hex" ? "00 00 01 02 03 05 06 07" : "41 41 42 43 44 46 47 48",
+      );
+      await expect(byte(page, 5)).toHaveClass(/cursor/);
+      await expect(page.getByTestId("length")).toHaveText(pane === "hex" ? "259" : "8");
+    });
+  }
+}
 test("mutable buffers, immutable replacement, StrictMode remount and bounded virtualization", async ({
   page,
 }) => {

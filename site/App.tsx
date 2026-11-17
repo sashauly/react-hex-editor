@@ -275,6 +275,20 @@ export default function App() {
             complete byte pairs in hex mode or characters in ASCII mode, bounded
             by the remaining buffer.
           </p>
+          <p>
+            Editing preserves the buffer length. Typing and paste start at the
+            lower bound of a selection, regardless of selection direction, and
+            collapse it after the edit. Typing overwrites one byte; paste
+            overwrites as many bytes as fit, even beyond the selected range.
+            Any remaining selected bytes keep their values. Delete and
+            Backspace fill the selected range with zeroes and leave the cursor
+            at its start. Without a selection, Delete zeroes the current byte
+            and advances; Backspace zeroes the previous byte and moves back.
+            With Shift held, either key zeroes the current byte without moving.
+            Either key cancels a pending hex digit without writing. Invalid
+            write offsets are ignored, including Backspace before byte zero
+            and all writes to an empty buffer.
+          </p>
           <h3>Mutable data</h3>
           <p>
             For a stable <code>number[]</code> or <code>Uint8Array</code>,
@@ -311,14 +325,12 @@ export default function App() {
           </p>
           <h3>Known limitations</h3>
           <p>
-            The existing readOnly prop blocks keyboard edits; paste and
+            The readOnly prop blocks keyboard edits and paste;
             imperative setValue can still request writes. Enforce write policy
-            in your callback. Selected-range edits use the cursor endpoint
-            rather than range replacement. Hex paste discards non-hex
+            in your callback. Hex paste discards non-hex
             characters/unpaired nibbles and truncates at the data end; it does
             not report rejected input. ASCII input follows the legacy key map
-            and paste can emit values above 255. Empty data and Backspace at the
-            start can produce invalid offsets. Validate callback bounds. Cut
+            and paste can emit values above 255. Cut
             does not remove source bytes. Structural insertion/deletion, undo
             history and search are deferred; modernization preserves these
             existing boundaries.
