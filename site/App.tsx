@@ -327,9 +327,13 @@ export default function App() {
           <p>
             The readOnly prop blocks keyboard edits and paste;
             imperative setValue can still request writes. Enforce write policy
-            in your callback. Hex paste discards non-hex
-            characters/unpaired nibbles and truncates at the data end; it does
-            not report rejected input. ASCII input follows the legacy key map
+            in your callback. Hex paste accepts complete byte pairs, contiguous
+            or separated by whitespace (for example ABcd or AB CD). Invalid
+            characters, prefixes, punctuation and incomplete pairs reject the
+            entire paste, preserving bytes, selection and any pending nibble.
+            Use onPasteError(error) to display error.message. Empty or
+            whitespace-only hex input is ignored. Valid paste truncates at the
+            data end. ASCII input follows the legacy key map
             and paste can emit values above 255. Cut
             does not remove source bytes. Structural insertion/deletion, undo
             history and search are deferred; modernization preserves these

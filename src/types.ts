@@ -56,6 +56,14 @@ export interface BaseHexEditorProps {
   nonce?: number | string,
   onBlur?: (e: React.FocusEvent) => void,
   onFocus?: (e: React.FocusEvent) => void,
+  /** Called once with an Error containing a default English message when hex paste is rejected.
+   * Hex accepts complete byte pairs (case-insensitive), with optional whitespace
+   * between pairs and at the edges. Invalid characters or incomplete pairs reject
+   * the entire paste without changing bytes, selection or a pending nibble.
+   * Empty/whitespace-only hex paste is ignored. ASCII and read-only paste do not
+   * call this callback. Valid paste is bounded by the remaining buffer length.
+   */
+  onPasteError?: (error: Error) => void,
   /** Requests an in-bounds byte overwrite; the caller must accept it into data and re-render.
    * Range edits start at the lower bound. Delete/Backspace zero the selected bytes.
    * Editing never inserts or removes bytes.

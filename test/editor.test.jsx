@@ -21,6 +21,7 @@ const dimensions = {
   height: 80,
   rowHeight: 20,
 };
+const pasteErrorMessage = "Invalid hex input. Use complete byte pairs, optionally separated by whitespace—for example, AB CD.";
 
 beforeEach(() => {
   container = document.createElement("div");
@@ -259,6 +260,18 @@ describe("public editor behavior", () => {
       act(() => ref.current.focus());
       expect(document.activeElement).toBe(input());
     });
+    it(`${name} forwards the current paste rejection callback`, () => {
+      const onPasteError = vi.fn();
+      render({ onPasteError }, Component);
+      paste("GG AB C");
+      expect(onPasteError).toHaveBeenCalledExactlyOnceWith(new Error(pasteErrorMessage));
+      const updated = vi.fn();
+      render({ onPasteError: updated }, Component);
+      paste("AB C");
+      expect(updated).toHaveBeenCalledExactlyOnceWith(new Error(pasteErrorMessage));
+      expect(onPasteError).toHaveBeenCalledTimes(1);
+      expect(onSetValue).not.toHaveBeenCalled();
+    });
   }
   it("clicks a byte and commits only after two hex nibbles", () => {
     render();
@@ -387,6 +400,76 @@ describe("public editor behavior", () => {
       [3, 0xab],
       [4, 0xcd],
     ]);
+  });
+  it.each(["ABcd00", "ab CD 00", " \tab\r\nCD\t00\n"])(
+    "accepts complete hex byte pairs: %j", (text) => {
+      const onPasteError = vi.fn();
+      render({ onPasteError });
+      const event = paste(text);
+      expect(event.defaultPrevented).toBe(true);
+      expect(onSetValue.mock.calls).toEqual([[0, 0xab], [1, 0xcd], [2, 0]]);
+      expect(onPasteError).not.toHaveBeenCalled();
+      expect(byte(3).classList.contains("cursor")).toBe(true);
+    },
+  );
+  it.each(["GG AB C", " \tGG AB C\n", "AB C", "A", "A B", "AB C D", "0xAB", "AB,CD", "AB-CD", "AB zz"])(
+    "rejects the entire malformed hex paste: %j", (text) => {
+      const onPasteError = vi.fn();
+      render({ onPasteError });
+      act(() => ref.current.setSelectionRange(1, 3, "backward", true));
+      const selectionClassName = byte(1).className;
+      const event = paste(text);
+      expect(onSetValue).not.toHaveBeenCalled();
+      expect(onPasteError).toHaveBeenCalledExactlyOnceWith(new Error(pasteErrorMessage));
+      expect(onPasteError.mock.calls[0][0]).toBeInstanceOf(Error);
+      expect(event.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(input());
+      expect(input().value).toBe("2233");
+      expect(input().selectionStart).toBe(0);
+      expect(input().selectionEnd).toBe(4);
+      expect(byte(1).className).toBe(selectionClassName);
+      expect(container.querySelectorAll(".byteValue.selection")).toHaveLength(2);
+    },
+  );
+  it("validates the whole paste before truncating to the buffer end", () => {
+    const onPasteError = vi.fn();
+    render({ onPasteError });
+    act(() => ref.current.setSelectionRange(4));
+    paste("AB CD Z");
+    expect(onSetValue).not.toHaveBeenCalled();
+    expect(onPasteError).toHaveBeenCalledWith(new Error(pasteErrorMessage));
+  });
+  it.each(["", " \r\n\t"])("leaves selection unchanged for an empty hex paste: %j", (text) => {
+    const onPasteError = vi.fn();
+    render({ onPasteError });
+    act(() => ref.current.setSelectionRange(1, 3));
+    paste(text);
+    expect(onSetValue).not.toHaveBeenCalled();
+    expect(onPasteError).not.toHaveBeenCalled();
+    expect(input().value).toBe("2233");
+    expect(container.querySelectorAll(".byteValue.selection")).toHaveLength(2);
+  });
+  it("preserves a pending nibble on rejection without requiring an error callback", () => {
+    render();
+    key(65);
+    paste("GG AB C");
+    expect(onSetValue).not.toHaveBeenCalled();
+    expect(byte(0).textContent).toBe("a1");
+    key(66);
+    expect(onSetValue.mock.calls).toEqual([[0, 0xab]]);
+  });
+  it("does not validate ASCII paste or report errors for read-only paste", () => {
+    const onPasteError = vi.fn();
+    render({ onPasteError });
+    key(9);
+    paste("GG AB C");
+    expect(onSetValue.mock.calls).toEqual([[0, 71], [1, 71], [2, 32], [3, 65], [4, 66]]);
+    onSetValue.mockClear();
+    key(9);
+    render({ onPasteError, readOnly: true });
+    paste("GG AB C");
+    expect(onSetValue).not.toHaveBeenCalled();
+    expect(onPasteError).not.toHaveBeenCalled();
   });
   it("copies and pastes ASCII in the active pane", () => {
     render({ data: [65, 66, 67] });
