@@ -39,23 +39,28 @@ export type ValueFormatter = (value: number) => string | JSX.Element | null;
 
 export type HexEditorBodyChildren = JSX.Element | null | (() => JSX.Element);
 
+/** Shared display and controlled editing options for all four components. */
 export interface BaseHexEditorProps {
   asciiPlaceholder?: string | JSX.Element | null,
   autoFocus?: boolean,
   children?: HexEditorBodyChildren,
   className?: string,
   classNames?: HexEditorClassNames,
+  /** Caller-owned bytes. Mutating this buffer requires updating `nonce`. */
   data: Uint8Array | number[],
   formatValue?: ValueFormatter,
   inlineStyles?: HexEditorInlineStyles,
   highlightColumn?: boolean,
   inputStyle?: React.CSSProperties | null,
+  /** Change this value after mutating an existing data buffer. */
   nonce?: number | string,
   onBlur?: (e: React.FocusEvent) => void,
   onFocus?: (e: React.FocusEvent) => void,
+  /** Requests an overwrite; the caller must accept it into data and re-render. */
   onSetValue?: (offset: number, value: number) => void,
   onItemsRendered?: (props: ListOnItemsRenderedProps) => void,
   overscanCount?: number,
+  /** Blocks keyboard writes. See the guide for existing paste/ref limitations. */
   readOnly?: boolean,
   showAscii?: boolean,
   showColumnLabels?: boolean,
@@ -64,6 +69,7 @@ export interface BaseHexEditorProps {
   tabIndex?: number,
 };
 
+/** Optional dimensions are inferred from measurements and the sized parent. */
 export interface AutoSizeHexEditorProps extends BaseHexEditorProps {
   asciiWidth?: number,
   byteWidth?: number,
@@ -78,6 +84,7 @@ export interface AutoSizeHexEditorProps extends BaseHexEditorProps {
   width?: number,
 };
 
+/** Explicit geometry required by BaseHexEditor and UnstyledBaseHexEditor. */
 export interface HexEditorProps extends BaseHexEditorProps {
   columns: number,
   height: number,
@@ -86,11 +93,13 @@ export interface HexEditorProps extends BaseHexEditorProps {
   width: number,
 };
 
+/** Forwarded ref shared by styled, unstyled, automatic and explicit editors. */
 export interface HexEditorHandle {
   blur(): void,
   focus(): void,
   scrollTo(scrollTop: number): void,
-  scrollToItem(rowIndex: number, align: Align): void,
+  scrollToItem(rowIndex: number, align?: Align): void,
+  /** Select a range with an exclusive end. A collapsed range is the cursor. */
   setSelectionRange(
     start: number | null,
     end?: number | null,

@@ -4,18 +4,18 @@ declare module 'keycoder' {
     keyCode: {
       ie: number,
       mozilla: number,
-    };
+    }
     character: string | null;
     charCode: number | null;
     shift: {
       character: string | null,
       charCode: number | null,
-    };
+    }
     isPrintableCharacter(): boolean;
     hasCharCode(): boolean;
     hasDistinctShiftCharacter(): boolean;
     equals(): boolean;
-  };
+  }
 
   export function fromEvent(e: Event): Key
 }

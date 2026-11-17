@@ -11,7 +11,7 @@ import hexEditorStyles from '../utils/styles';
 
 import AutoSizeHexEditor from './AutoSizeHexEditor';
 
-const StyledAutoSizeHexEditor: React.RefForwardingComponent<HexEditorHandle, AutoSizeHexEditorProps> = ({
+const StyledAutoSizeHexEditor: React.ForwardRefRenderFunction<HexEditorHandle, AutoSizeHexEditorProps> = ({
   inlineStyles = EMPTY_INLINE_STYLES,
   ...restProps
 }: AutoSizeHexEditorProps, ref) => (

@@ -1,0 +1,12 @@
+# Repository setup
+
+External configuration is pending until the local modernization is reviewed and uploaded. Do not require a guessed check name: observe successful Actions jobs on the actual repository first.
+
+1. Inspect open PRs, existing rules/protection, explicit branch refs, Actions and Pages/environment settings. Preserve existing work. The planning baseline has only `master`; bootstrap CI there if needed (the temporary push filter permits it).
+2. Rename `master` to `main` through GitHub's branch rename flow. Make `main` the default. Update any PR bases or external references that did not follow the rename. Rename the corresponding local branch, update its upstream, fetch, and refresh origin/HEAD (`git remote set-head origin -a`). Check branch/HEAD status before each operation; do not stash or reset someone else's edits.
+3. Create `develop` from the agreed main baseline. Keep the modernization in a short-lived feature branch targeting develop. Enable squash and merge commits; disable rebase merges to keep the documented workflow clear. Promote through a merge-commit develop -> main PR.
+4. Run `Validate` successfully and inspect actual check runs, including a documentation-only PR to each target. Set active rulesets for `refs/heads/main` and `refs/heads/develop`: require a PR, zero required approvals, resolved conversations, the observed **Validation gate** check, and strict/up-to-date checks. Block force pushes and deletion. No routine bypass, including the owner. Keep linear-history and general restrict-updates rules off. The gate always runs and fails if a required job fails, is cancelled or is unexpectedly skipped. There are no workflow path filters.
+5. Enable Pages with GitHub Actions as the source. Allow only main deployments in the github-pages environment. The validated main push deploys the combined site artifact; develop and PR runs never deploy. The first deployment is a separate setup action. Check the landing page, nested API pages, assets and navigation at <https://sashauly.github.io/react-hex-editor/>.
+6. Verify compliant PR merging, owner policy, default branch, both upstreams, origin/HEAD, CI required checks, Pages environment, badges and explicit links. Remove the temporary master push filter after the rename is verified. Record URLs and actual check names in the implementation report.
+
+Manual release tags originate from validated main. Pages deploys development docs automatically and does not create tags or package releases.
