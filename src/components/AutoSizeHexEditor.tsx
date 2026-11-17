@@ -19,6 +19,14 @@ import { formatHex } from '../utils';
 import HexEditor from './HexEditor';
 import HexEditorMeasureRow from './HexEditorMeasureRow';
 
+// AutoSizer supports independent boolean flags at runtime, including both true.
+// Its discriminated declarations omit that combination and dynamic flags.
+const MeasuredAutoSizer = AutoSizer as unknown as React.ComponentType<{
+  disableWidth: boolean,
+  disableHeight: boolean,
+  children: (size: { width?: number, height?: number }) => React.ReactNode,
+}>;
+
 interface AutoSizeHexEditorState {
   asciiWidth: number,
   byteWidth: number,
@@ -46,7 +54,7 @@ const reducer = (
   mergeState: AutoSizeHexEditorAction,
 ) => ({ ...prevState, ...mergeState });
 
-const AutoSizeHexEditor: React.RefForwardingComponent<HexEditorHandle, AutoSizeHexEditorProps> = ({
+const AutoSizeHexEditor: React.ForwardRefRenderFunction<HexEditorHandle, AutoSizeHexEditorProps> = ({
   asciiPlaceholder,
   asciiWidth: explicitAsciiWidth,
   byteWidth: explicitByteWidth,
@@ -137,7 +145,7 @@ const AutoSizeHexEditor: React.RefForwardingComponent<HexEditorHandle, AutoSizeH
         styles={measureStyles}
         value={0x00}
       />
-      <AutoSizer
+      <MeasuredAutoSizer
         disableWidth={explicitWidth != null || explicitColumns != null}
         disableHeight={explicitHeight != null || explicitRows != null}
       >
@@ -201,12 +209,12 @@ const AutoSizeHexEditor: React.RefForwardingComponent<HexEditorHandle, AutoSizeH
               asciiPlaceholder={asciiPlaceholder}
               classNames={classNames}
               columns={columns}
-              height={height}
+              height={height!}
               inlineStyles={inlineStyles}
               ref={ref}
               rowHeight={rowHeight}
               rows={rows}
-              width={width}
+              width={width!}
               {...props}
               style={{
                 ...props.style,
@@ -216,7 +224,7 @@ const AutoSizeHexEditor: React.RefForwardingComponent<HexEditorHandle, AutoSizeH
             />
           );
         }}
-      </AutoSizer>
+      </MeasuredAutoSizer>
     </>
   );
 };

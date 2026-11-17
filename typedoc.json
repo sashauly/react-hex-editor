@@ -1,0 +1,20 @@
+{
+  "entryPoints": [
+    "src/index.tsx"
+  ],
+  "tsconfig": "tsconfig.json",
+  "out": "site-dist/api",
+  "name": "React Hex Editor \u00b7 Development API",
+  "readme": "docs/API.md",
+  "excludeExternals": true,
+  "excludeInternal": true,
+  "includeVersion": false,
+  "navigationLinks": {
+    "Guide and demo": "/react-hex-editor/index.html#guide",
+    "GitHub": "https://github.com/sashauly/react-hex-editor"
+  },
+  "validation": {
+    "notExported": false,
+    "invalidLink": true
+  }
+}

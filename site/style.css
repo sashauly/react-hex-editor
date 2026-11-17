@@ -1,0 +1,113 @@
+:root {
+  font:
+    16px/1.6 system-ui,
+    sans-serif;
+  color: #203331;
+  background: #f5f6f0;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+header,
+main,
+footer {
+  max-width: 1080px;
+  margin: auto;
+  padding: 24px;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #d4ded6;
+}
+a {
+  color: #12634f;
+}
+nav {
+  display: flex;
+  gap: 22px;
+}
+h1 {
+  font-size: clamp(48px, 8vw, 88px);
+  letter-spacing: -0.06em;
+  line-height: 1.05;
+  margin: 24px 0;
+}
+h2 {
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+h3 {
+  margin-top: 32px;
+}
+.eyebrow {
+  font: 12px monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #527368;
+}
+.intro {
+  max-width: 630px;
+  font-size: 21px;
+}
+section {
+  margin-top: 60px;
+  padding-top: 12px;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 16px 0;
+}
+.controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+button,
+select {
+  font: inherit;
+  padding: 7px 12px;
+  border: 1px solid #b7c9bb;
+  border-radius: 4px;
+  background: #fff;
+  color: #203331;
+}
+button {
+  cursor: pointer;
+}
+button:hover {
+  background: #e2eee4;
+}
+.editor-frame {
+  border: 1px solid #b7c9bb;
+  position: relative;
+  background: white;
+  overflow: hidden;
+}
+.status {
+  font: 13px monospace;
+  overflow-wrap: anywhere;
+}
+pre {
+  background: #e4eae3;
+  padding: 22px;
+  overflow: auto;
+  border-radius: 6px;
+  font-size: 14px;
+}
+code {
+  font-family: ui-monospace, monospace;
+}
+footer {
+  margin-top: 60px;
+  border-top: 1px solid #d4ded6;
+  font-size: 13px;
+  color: #527368;
+}
