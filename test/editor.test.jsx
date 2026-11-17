@@ -94,6 +94,7 @@ function paste(text) {
   act(() => {
     input().dispatchEvent(event);
   });
+  return event;
 }
 
 describe("public editor behavior", () => {
@@ -199,6 +200,44 @@ describe("public editor behavior", () => {
     key(39, { shiftKey: true });
     expect(input().value).toBe('"');
   });
+  for (const pane of ["Hex", "ASCII"]) {
+    for (const selected of [false, true]) {
+      it(`blocks read-only ${pane} paste ${selected ? "with" : "without"} a selection`, () => {
+        render({ readOnly: true, data: [0x11, 0x22] });
+        act(() => ref.current.focus());
+        if (pane === "ASCII") key(9);
+        if (selected) key(39, { shiftKey: true });
+        const firstByteText = pane === "Hex" ? "11" : "\x11";
+        const copyText = selected ? firstByteText : "";
+        expect(input().value).toBe(copyText);
+
+        const event = paste("AB");
+
+        expect(onSetValue).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(true);
+        expect(document.activeElement).toBe(input());
+        expect(input().value).toBe(copyText);
+        expect(input().selectionStart).toBe(0);
+        expect(input().selectionEnd).toBe(copyText.length);
+        // Selection can still extend from the original cursor after a rejected paste.
+        key(39, { shiftKey: true });
+        const selectedText = pane === "Hex" ? "1122" : '\x11"';
+        expect(input().value).toBe(selected ? selectedText : firstByteText);
+      });
+    }
+    it(`honors readOnly prop changes for ${pane} paste`, () => {
+      render();
+      if (pane === "ASCII") key(9);
+      for (const readOnly of [false, true, false]) {
+        render({ readOnly });
+        act(() => ref.current.setSelectionRange(0));
+        onSetValue.mockClear();
+        paste("AB");
+        const expectedWrites = pane === "Hex" ? [[0, 0xab]] : [[0, 65], [1, 66]];
+        expect(onSetValue.mock.calls).toEqual(readOnly ? [] : expectedWrites);
+      }
+    });
+  }
   it("pastes complete hex bytes and truncates to the remaining data", () => {
     render();
     mouse(byte(3), "click");

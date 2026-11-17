@@ -640,14 +640,18 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
   }, [setValue, setSelectionRange]);
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
     const {
       cursorOffset,
       data,
       editMode: currentEditMode,
+      readOnly,
     } = stateRef.current;
+    if (readOnly) {
+      return;
+    }
     const dataLength = data.length;
     const maxOffset = dataLength - cursorOffset;
-    e.preventDefault();
     const clipboardText = e.clipboardData.getData('Text');
     const values = currentEditMode === EDIT_MODE_ASCII
       ? clipboardText.split('').map(v => v.charCodeAt(0))
