@@ -681,10 +681,12 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
     const values = currentEditMode === EDIT_MODE_ASCII
       ? clipboardText.split('').map(v => v.charCodeAt(0))
       : (clipboardText.match(HEX_BYTE_PATTERN) || []).map(v => parseInt(v, 16));
+    if (values.length > maxOffset) {
+      onPasteError?.(new Error('Paste exceeds the remaining buffer length.'));
+      return;
+    }
     values.forEach((value, i) => {
-      if (i < maxOffset) {
-        setValue(selectionStart + i, value);
-      }
+      setValue(selectionStart + i, value);
     });
     setSelectionRange(Math.min(selectionStart + values.length, dataLength - 1));
   }, [onPasteError, setValue, setSelectionRange]);

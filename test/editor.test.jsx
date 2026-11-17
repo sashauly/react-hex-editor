@@ -22,6 +22,7 @@ const dimensions = {
   rowHeight: 20,
 };
 const pasteErrorMessage = "Invalid hex input. Use complete byte pairs, optionally separated by whitespace—for example, AB CD.";
+const pasteOverflowMessage = "Paste exceeds the remaining buffer length.";
 
 beforeEach(() => {
   container = document.createElement("div");
@@ -118,15 +119,15 @@ describe("public editor behavior", () => {
 
       for (const text of ["AB", "ABCDEF"]) {
         it(`${pane} paste ${text} starts at a ${direction} range's lower bound`, () => {
-          render();
+          render({ data: [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88] });
           if (pane === "ASCII") key(9);
           act(() => ref.current.setSelectionRange(1, 3, direction));
           paste(text);
           const values = pane === "Hex"
             ? text.match(/../g).map(value => parseInt(value, 16))
             : Array.from(text, value => value.charCodeAt(0));
-          expect(onSetValue.mock.calls).toEqual(values.slice(0, 4).map((value, i) => [i + 1, value]));
-          expect(byte(Math.min(1 + values.length, 4)).classList.contains("cursor")).toBe(true);
+          expect(onSetValue.mock.calls).toEqual(values.map((value, i) => [i + 1, value]));
+          expect(byte(1 + values.length).classList.contains("cursor")).toBe(true);
         });
       }
     }
@@ -194,7 +195,7 @@ describe("public editor behavior", () => {
     render();
     act(() => ref.current.setSelectionRange(5));
     expect(byte(4).classList.contains("cursor")).toBe(true);
-    paste("ab cd");
+    paste("ab");
     expect(onSetValue.mock.calls).toEqual([[4, 0xab]]);
   });
   for (const data of [[], [0x11], new Uint8Array(0), new Uint8Array([0x11])]) {
@@ -392,10 +393,10 @@ describe("public editor behavior", () => {
       }
     });
   }
-  it("pastes complete hex bytes and truncates to the remaining data", () => {
+  it("pastes complete hex bytes that exactly fit the remaining data", () => {
     render();
     mouse(byte(3), "click");
-    paste("ab cd ef");
+    paste("ab cd");
     expect(onSetValue.mock.calls).toEqual([
       [3, 0xab],
       [4, 0xcd],
@@ -431,7 +432,7 @@ describe("public editor behavior", () => {
       expect(container.querySelectorAll(".byteValue.selection")).toHaveLength(2);
     },
   );
-  it("validates the whole paste before truncating to the buffer end", () => {
+  it("validates the whole paste before checking overflow", () => {
     const onPasteError = vi.fn();
     render({ onPasteError });
     act(() => ref.current.setSelectionRange(4));
@@ -460,16 +461,76 @@ describe("public editor behavior", () => {
   });
   it("does not validate ASCII paste or report errors for read-only paste", () => {
     const onPasteError = vi.fn();
-    render({ onPasteError });
+    render({ onPasteError, data: new Uint8Array(8) });
     key(9);
     paste("GG AB C");
-    expect(onSetValue.mock.calls).toEqual([[0, 71], [1, 71], [2, 32], [3, 65], [4, 66]]);
+    expect(onSetValue.mock.calls).toEqual([[0, 71], [1, 71], [2, 32], [3, 65], [4, 66], [5, 32], [6, 67]]);
     onSetValue.mockClear();
     key(9);
     render({ onPasteError, readOnly: true });
     paste("GG AB C");
     expect(onSetValue).not.toHaveBeenCalled();
     expect(onPasteError).not.toHaveBeenCalled();
+  });
+  for (const pane of ["Hex", "ASCII"]) {
+    for (const direction of ["forward", "backward"]) {
+      it(`rejects a one-byte ${pane} overflow from a ${direction} selection without partial writes`, () => {
+        const onPasteError = vi.fn();
+        render({ onPasteError });
+        if (pane === "ASCII") key(9);
+        act(() => ref.current.setSelectionRange(1, 3, direction, true));
+        const copyText = input().value;
+        const selectionClasses = [byte(1).className, byte(2).className];
+        const event = paste(pane === "Hex" ? "AA BB CC DD EE" : "ABCDE");
+        expect(event.defaultPrevented).toBe(true);
+        expect(onSetValue).not.toHaveBeenCalled();
+        expect(onPasteError).toHaveBeenCalledExactlyOnceWith(new Error(pasteOverflowMessage));
+        expect(onPasteError.mock.calls[0][0]).toBeInstanceOf(Error);
+        expect(document.activeElement).toBe(input());
+        expect(input().value).toBe(copyText);
+        expect(input().selectionStart).toBe(0);
+        expect(input().selectionEnd).toBe(copyText.length);
+        expect([byte(1).className, byte(2).className]).toEqual(selectionClasses);
+      });
+    }
+    for (const data of [[], new Uint8Array(0)]) {
+      it(`rejects ${pane} paste into empty ${data.constructor.name} data`, () => {
+        const onPasteError = vi.fn();
+        render({ data, onPasteError });
+        if (pane === "ASCII") key(9);
+        paste(pane === "Hex" ? "AA" : "A");
+        expect(onSetValue).not.toHaveBeenCalled();
+        expect(onPasteError).toHaveBeenCalledExactlyOnceWith(new Error(pasteOverflowMessage));
+      });
+    }
+    it(`accepts an exact-fit ${pane} paste at EOF`, () => {
+      const onPasteError = vi.fn();
+      render({ onPasteError });
+      if (pane === "ASCII") key(9);
+      act(() => ref.current.setSelectionRange(4));
+      paste(pane === "Hex" ? "AA" : "A");
+      expect(onSetValue.mock.calls).toEqual([[4, pane === "Hex" ? 0xaa : 65]]);
+      expect(onPasteError).not.toHaveBeenCalled();
+      expect(byte(4).classList.contains("cursor")).toBe(true);
+    });
+  }
+  it("preserves a pending nibble when an oversized paste is rejected without a callback", () => {
+    render();
+    act(() => ref.current.setSelectionRange(4));
+    key(65);
+    paste("AA BB CC");
+    expect(onSetValue).not.toHaveBeenCalled();
+    expect(byte(4).textContent).toBe("a5");
+    key(66);
+    expect(onSetValue.mock.calls).toEqual([[4, 0xab]]);
+  });
+  it("checks paste capacity against the current buffer after replacement", () => {
+    const onPasteError = vi.fn();
+    render({ onPasteError });
+    render({ data: [0x11], onPasteError });
+    paste("AA BB");
+    expect(onSetValue).not.toHaveBeenCalled();
+    expect(onPasteError).toHaveBeenCalledExactlyOnceWith(new Error(pasteOverflowMessage));
   });
   it("copies and pastes ASCII in the active pane", () => {
     render({ data: [65, 66, 67] });
