@@ -236,10 +236,6 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
         : SELECTION_DIRECTION_NONE;
     }
 
-    const cursorOffset = selectionDirection === SELECTION_DIRECTION_BACKWARD
-      ? selectionStart
-      : selectionEnd;
-
     let selectedValue = '';
     for (let i = selectionStart; i < selectionEnd; i += 1) {
       selectedValue += currentEditMode === EDIT_MODE_ASCII
@@ -248,8 +244,12 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
     }
 
     if (selectionStart === selectionEnd && selectionStart >= dataLength) {
-      selectionStart = selectionEnd = dataLength - 1;
+      selectionStart = selectionEnd = Math.max(0, dataLength - 1);
     }
+
+    const cursorOffset = selectionDirection === SELECTION_DIRECTION_BACKWARD
+      ? selectionStart
+      : selectionEnd;
 
     setState({
       cursorOffset,
@@ -335,7 +335,8 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
   }, [setSelectionRange]);
 
   const setValue = useCallback((offset: number, value: number) => {
-    if (typeof onSetValue === 'function') {
+    if (Number.isInteger(offset) && offset >= 0 && offset < stateRef.current.data.length
+      && typeof onSetValue === 'function') {
       onSetValue(offset, value);
     }
   }, [onSetValue]);
@@ -559,6 +560,11 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
               nybbleHigh: null,
               nybbleOffset: 0,
             });
+          } else if (isSelection) {
+            for (let offset = selectionStart; offset < selectionEnd; offset += 1) {
+              setValue(offset, 0x00);
+            }
+            setSelectionRange(selectionStart);
           } else if (shiftKey) {
             setValue(selectionEnd, 0x00);
             setSelectionRange(selectionEnd);
@@ -579,6 +585,11 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
               nybbleHigh: null,
               nybbleOffset: 0,
             });
+          } else if (isSelection) {
+            for (let offset = selectionStart; offset < selectionEnd; offset += 1) {
+              setValue(offset, 0x00);
+            }
+            setSelectionRange(selectionStart);
           } else if (shiftKey) {
             setValue(selectionEnd, 0x00);
             setSelectionRange(selectionEnd);
@@ -593,19 +604,15 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
 
       // Edit hex value
       case editMode === EDIT_MODE_HEX && which in KEY_VALUES: {
-        if (!readOnly) {
+        if (!readOnly && dataLength > 0) {
           const nybbleValue = KEY_VALUES[which];
           if (nybbleOffset && nybbleHigh != null) {
             const value = (nybbleHigh << 4) | nybbleValue;
-            setValue(selectionEnd, value);
-            setSelectionRange(Math.min(selectionEnd + 1, dataLength - 1));
+            setValue(selectionStart, value);
+            setSelectionRange(Math.min(selectionStart + 1, dataLength - 1));
           } else {
             if (isSelection) {
-              setSelectionRange((
-                selectionDirection === SELECTION_DIRECTION_BACKWARD
-                  ? selectionStart
-                  : selectionEnd - 1
-              ));
+              setSelectionRange(selectionStart);
             }
             setState({
               nybbleOffset: 1,
@@ -624,8 +631,8 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
           if (key.charCode != null) {
             const value = shiftKey ? key.shift.charCode : key.charCode;
             if (value != null) {
-              setValue(selectionEnd, value);
-              setSelectionRange(Math.min(selectionEnd + 1, dataLength - 1));
+              setValue(selectionStart, value);
+              setSelectionRange(Math.min(selectionStart + 1, dataLength - 1));
             }
           }
         }
@@ -642,7 +649,7 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     const {
-      cursorOffset,
+      selectionStart,
       data,
       editMode: currentEditMode,
       readOnly,
@@ -651,17 +658,17 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
       return;
     }
     const dataLength = data.length;
-    const maxOffset = dataLength - cursorOffset;
+    const maxOffset = dataLength - selectionStart;
     const clipboardText = e.clipboardData.getData('Text');
     const values = currentEditMode === EDIT_MODE_ASCII
       ? clipboardText.split('').map(v => v.charCodeAt(0))
       : (clipboardText.replace(/[^0-9a-f]/gi, '').match(/.{2}/g) || []).map(v => parseInt(v, 16));
     values.forEach((value, i) => {
       if (i < maxOffset) {
-        setValue(cursorOffset + i, value);
+        setValue(selectionStart + i, value);
       }
     });
-    setSelectionRange(Math.min(cursorOffset + values.length, dataLength - 1));
+    setSelectionRange(Math.min(selectionStart + values.length, dataLength - 1));
   }, [setValue, setSelectionRange]);
 
   const handleItemsRendered = useCallback((props: ListOnItemsRenderedProps) => {

@@ -98,6 +98,147 @@ function paste(text) {
 }
 
 describe("public editor behavior", () => {
+  for (const direction of ["forward", "backward"]) {
+    for (const pane of ["Hex", "ASCII"]) {
+      it(`${pane} typing overwrites from the start of a ${direction} range`, () => {
+        render({ data: [0x11, 0x22, 0x33, 0x44] });
+        if (pane === "ASCII") key(9);
+        act(() => ref.current.setSelectionRange(0, 4, direction));
+        key(65, { shiftKey: pane === "ASCII" });
+        if (pane === "Hex") {
+          expect(onSetValue).not.toHaveBeenCalled();
+          expect(byte(0).textContent).toBe("a1");
+          key(66);
+        }
+        expect(onSetValue.mock.calls).toEqual([[0, pane === "Hex" ? 0xab : 65]]);
+        expect(byte(1).classList.contains("cursor")).toBe(true);
+        expect(input().value).toBe("");
+      });
+
+      for (const text of ["AB", "ABCDEF"]) {
+        it(`${pane} paste ${text} starts at a ${direction} range's lower bound`, () => {
+          render();
+          if (pane === "ASCII") key(9);
+          act(() => ref.current.setSelectionRange(1, 3, direction));
+          paste(text);
+          const values = pane === "Hex"
+            ? text.match(/../g).map(value => parseInt(value, 16))
+            : Array.from(text, value => value.charCodeAt(0));
+          expect(onSetValue.mock.calls).toEqual(values.slice(0, 4).map((value, i) => [i + 1, value]));
+          expect(byte(Math.min(1 + values.length, 4)).classList.contains("cursor")).toBe(true);
+        });
+      }
+    }
+    for (const code of [8, 46]) {
+      for (const shiftKey of [false, true]) {
+        it(`key ${code} zeroes a ${direction} range (Shift: ${shiftKey})`, () => {
+          render();
+          act(() => ref.current.setSelectionRange(1, 4, direction));
+          key(code, { shiftKey });
+          expect(onSetValue.mock.calls).toEqual([[1, 0], [2, 0], [3, 0]]);
+          expect(byte(1).classList.contains("cursor")).toBe(true);
+          expect(input().value).toBe("");
+        });
+      }
+    }
+  }
+  it("Select All then typing preserves buffer length and unedited bytes", () => {
+    const data = [0x11, 0x22, 0x33, 0x44];
+    render({ data, onSetValue: (offset, value) => { data[offset] = value; } });
+    key(65, { ctrlKey: true });
+    key(65);
+    key(66);
+    expect(data).toEqual([0xab, 0x22, 0x33, 0x44]);
+  });
+  for (const code of [8, 46]) {
+    it(`Select All then key ${code} fills the buffer with zeroes`, () => {
+      const data = [0x11, 0x22, 0x33, 0x44];
+      render({ data, onSetValue: (offset, value) => { data[offset] = value; } });
+      key(65, { ctrlKey: true });
+      key(code);
+      expect(data).toEqual([0, 0, 0, 0]);
+    });
+  }
+  it("Backspace at zero never calls the consumer with a negative offset", () => {
+    render();
+    key(8);
+    expect(onSetValue).not.toHaveBeenCalled();
+    expect(byte(0).classList.contains("cursor")).toBe(true);
+  });
+  for (const [code, shiftKey, offset, next] of [
+    [8, false, 1, 1], [46, false, 2, 3],
+    [8, true, 2, 2], [46, true, 2, 2],
+  ]) {
+    it(`preserves collapsed-cursor behavior for key ${code} (Shift: ${shiftKey})`, () => {
+      render();
+      act(() => ref.current.setSelectionRange(2));
+      key(code, { shiftKey });
+      expect(onSetValue.mock.calls).toEqual([[offset, 0]]);
+      expect(byte(next).classList.contains("cursor")).toBe(true);
+    });
+  }
+  it("keeps selected bytes unchanged when read-only", () => {
+    render({ readOnly: true });
+    act(() => ref.current.setSelectionRange(0, 5));
+    key(65);
+    key(66);
+    key(8);
+    key(46);
+    key(9);
+    key(65);
+    expect(onSetValue).not.toHaveBeenCalled();
+    expect(container.querySelectorAll(".byteValue.selection")).toHaveLength(5);
+  });
+  it("keeps the cursor writable after a collapsed selection at the exclusive end", () => {
+    render();
+    act(() => ref.current.setSelectionRange(5));
+    expect(byte(4).classList.contains("cursor")).toBe(true);
+    paste("ab cd");
+    expect(onSetValue.mock.calls).toEqual([[4, 0xab]]);
+  });
+  for (const data of [[], [0x11], new Uint8Array(0), new Uint8Array([0x11])]) {
+    it(`never emits out-of-bounds writes for ${data.length} bytes`, () => {
+      render({ data });
+      act(() => {
+        for (const offset of [-1, data.length, 0.5, NaN, Infinity]) {
+          ref.current.setValue(offset, 0xff);
+        }
+      });
+      expect(onSetValue).not.toHaveBeenCalled();
+      if (data.length) return;
+      key(65, { ctrlKey: true });
+      key(46);
+      key(8);
+      key(65);
+      key(66);
+      paste("ab cd");
+      key(9);
+      key(65);
+      paste("AB");
+      expect(onSetValue).not.toHaveBeenCalled();
+    });
+  }
+  it("checks ref write bounds against the latest buffer", () => {
+    render();
+    const setValue = ref.current.setValue;
+    render({ data: [0x11] });
+    act(() => {
+      setValue(4, 0xff);
+      setValue(0, 0xab);
+    });
+    expect(onSetValue.mock.calls).toEqual([[0, 0xab]]);
+  });
+  it("cancels a range's pending first nibble before clearing any bytes", () => {
+    render();
+    act(() => ref.current.setSelectionRange(0, 5));
+    key(65);
+    key(8);
+    expect(onSetValue).not.toHaveBeenCalled();
+    expect(byte(0).textContent).toBe("11");
+    key(65);
+    key(66);
+    expect(onSetValue.mock.calls).toEqual([[0, 0xab]]);
+  });
   for (const [name, Component] of Object.entries({
     HexEditor,
     BaseHexEditor,
