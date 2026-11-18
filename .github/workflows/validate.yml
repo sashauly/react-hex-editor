@@ -24,7 +24,14 @@ jobs:
       - run: test "$(node --version)" = v26.13.1 && test "$(npm --version)" = 11.20.0
       - run: npm ci
       - run: npm run validate
-      - run: npx playwright install --with-deps chromium
+      - name: Prepare headless Chromium
+        run: |
+          npx playwright install --only-shell chromium
+          probe='import { chromium } from "@playwright/test"; const browser = await chromium.launch(); await browser.close();'
+          if ! node --input-type=module -e "$probe"; then
+            npx playwright install-deps chromium
+            node --input-type=module -e "$probe"
+          fi
       - name: Chromium compatibility
         run: |
           for react_version in 16.8.6 16.14.0 17.0.2 18.3.1; do
@@ -35,10 +42,12 @@ jobs:
           name: local-package
           path: artifacts/react-hex-editor-*.tgz
           if-no-files-found: error
+          retention-days: 7
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: browser-failure
+          retention-days: 7
           path: |
             playwright-report
             test-results
