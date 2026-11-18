@@ -352,3 +352,63 @@ for (const pane of ["hex", "ASCII"]) {
     await expect(page.getByTestId("length")).toHaveText("8");
   });
 }
+
+test("insert mode cuts bytes, edits empty and EOF positions, and restores selection through history", async ({ page }) => {
+  const field = input(page);
+  const length = page.getByTestId("length");
+  const selection = page.getByTestId("selection");
+  await page.getByLabel("Editing", { exact: true }).selectOption("insert");
+  await page.getByRole("button", { name: "ASCII sample", exact: true }).click();
+  await byte(page, 1).click();
+  await field.press("Tab");
+  await field.press(`${shortcut}+a`);
+  await expect(selection).toHaveText(/8 selected/);
+  await field.press(`${shortcut}+x`);
+  await expect(length).toHaveText("0");
+  await expect(byte(page, 0)).toHaveClass(/cursor/);
+  await expect(selection).toHaveText(/caret 0 · 0 selected/);
+
+  await field.press(`${shortcut}+v`);
+  await expect(length).toHaveText("8");
+  await expect(page.getByTestId("bytes")).toHaveText("41 42 43 44 45 46 47 48");
+  await expect(selection).toHaveText(/caret 8 · 0 selected/);
+
+  await field.press(`${shortcut}+z`);
+  await expect(length).toHaveText("0");
+  await field.press(`${shortcut}+z`);
+  await expect(length).toHaveText("8");
+  await expect(selection).toHaveText(/caret 8 · 8 selected/);
+  await field.press(`${shortcut}+Shift+z`);
+  await expect(length).toHaveText("0");
+
+  await field.press("Shift+Tab");
+  await field.press("a");
+  await expect(length).toHaveText("0");
+  await field.press("b");
+  await expect(byte(page, 0)).toHaveText("ab");
+  await expect(selection).toHaveText(/caret 1 · 0 selected/);
+  await field.press("c");
+  await field.press("d");
+  await expect(byte(page, 1)).toHaveText("cd");
+  await expect(selection).toHaveText(/caret 2 · 0 selected/);
+  await field.press(`${shortcut}+Shift+z`);
+  await expect(length).toHaveText("2");
+  await field.press(`${shortcut}+z`);
+  await expect(length).toHaveText("1");
+  await field.press("Backspace");
+  await expect(length).toHaveText("0");
+});
+
+test("read-only insert mode copies cut text and leaves bytes intact", async ({ page }) => {
+  const field = input(page);
+  await page.getByLabel("Editing", { exact: true }).selectOption("insert");
+  await page.getByLabel("Read only", { exact: true }).check();
+  await page.getByRole("button", { name: "Select first four" }).click();
+  await field.press(`${shortcut}+x`);
+  await expect(page.getByTestId("length")).toHaveText("259");
+  await page.getByLabel("Read only", { exact: true }).uncheck();
+  await byte(page, 0).click();
+  await field.press(`${shortcut}+v`);
+  await expect(page.getByTestId("length")).toHaveText("263");
+  await expect(page.getByTestId("bytes")).toHaveText("00 01 02 03 00 01 02 03");
+});

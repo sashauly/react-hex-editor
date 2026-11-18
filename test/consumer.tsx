@@ -7,6 +7,8 @@ import HexEditor, {
 import type {
   AutoSizeHexEditorProps,
   HexEditorHandle,
+  HexEditorEdit,
+  HexEditorSelection,
   HexEditorTheme,
 } from "react-hex-editor";
 import oneDarkPro from "react-hex-editor/themes/oneDarkPro";
@@ -45,3 +47,8 @@ export const editors = (
 );
 ref.current?.scrollToItem(3);
 ref.current?.setSelectionRange(0, 4, "backward", true);
+
+const handleEdit = (edit: HexEditorEdit) => edit.selectionAfter.caret;
+const handleSelection = (selection: HexEditorSelection) => selection.pane;
+export const controlled = <HexEditor {...props} editBehavior="insert" onEdit={handleEdit} onSelectionChange={handleSelection} />;
+ref.current?.getSelection();

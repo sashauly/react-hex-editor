@@ -45,9 +45,9 @@ export function Example() {
 }
 ```
 
-The default export and `UnstyledHexEditor` infer geometry from a sized container. `BaseHexEditor` and `UnstyledBaseHexEditor` require explicit dimensions. All four forward the same ref methods. Use `nonce` to refresh mutable buffers. The editor requests overwrites; the caller owns the data.
+The default export and `UnstyledHexEditor` infer geometry from a sized container. `BaseHexEditor` and `UnstyledBaseHexEditor` require explicit dimensions. All four forward the same ref methods. Use `nonce` to refresh mutable buffers. The caller owns the data. Use `onSetValue` for byte overwrites or `onEdit` for atomic changes, including insertion and removal.
 
-Support: React `>=16.8.6 <19`, styled-components `^5.3.11`, TypeScript declarations for 5.6.2+, and current Chrome/Edge, Firefox and Safari. CJS, ESM and theme entry points are retained. Known legacy editing limits, including read-only paste/ref writes, are documented in the guide; validate write policy and bounds in your callback.
+Support: React `>=16.8.6 <19`, styled-components `^5.3.11`, TypeScript declarations for 5.6.2+, and current Chrome/Edge, Firefox and Safari. CJS, ESM and theme entry points are retained. The guide documents selection, clipboard behavior, and caller-owned undo/redo.
 
 ## Develop
 

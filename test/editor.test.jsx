@@ -253,6 +253,7 @@ describe("public editor behavior", () => {
       expect(Object.keys(ref.current).sort()).toEqual([
         "blur",
         "focus",
+        "getSelection",
         "scrollTo",
         "scrollToItem",
         "setSelectionRange",
@@ -593,5 +594,139 @@ describe("public editor behavior", () => {
     render({ theme: { hexEditor: oneDarkPro } }, BaseHexEditor);
     expect(byte(0).classList.contains("byteValue")).toBe(true);
     expect(document.head.textContent).toContain(oneDarkPro.colorBackground);
+  });
+});
+
+describe("controlled edit operations", () => {
+  it("groups a Hex byte into one insert request and waits for the owner", () => {
+    const data = [0x11, 0x22];
+    const onEdit = vi.fn();
+    const props = { data, onEdit, editBehavior: "insert" };
+    render(props);
+    act(() => ref.current.setSelectionRange(1));
+    key(65);
+    expect(onEdit).not.toHaveBeenCalled();
+    key(65);
+    const [request] = onEdit.mock.calls[0];
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(request).toMatchObject({
+      offset: 1,
+      deleteCount: 0,
+      insert: [0xaa],
+      selectionBefore: { start: 1, end: 1, caret: 1 },
+      selectionAfter: { start: 2, end: 2, caret: 2 },
+    });
+    expect(onSetValue).not.toHaveBeenCalled();
+    expect(byte(1).textContent).toBe("22");
+    render(props);
+    expect(ref.current.getSelection().caret).toBe(1);
+
+    render({ ...props, data: [0x11, 0xaa, 0x22], appliedEdit: request });
+    expect(ref.current.getSelection().caret).toBe(2);
+    expect(byte(1).textContent).toBe("aa");
+    expect(data).toEqual([0x11, 0x22]);
+  });
+
+  it("keeps a newer selection when the owner applies an older edit", () => {
+    const onEdit = vi.fn();
+    const props = { data: [0x11, 0x22], onEdit, editBehavior: "insert" };
+    render(props);
+    paste("AA BB");
+    const [request] = onEdit.mock.calls[0];
+    act(() => ref.current.setSelectionRange(1));
+    render({ ...props, data: [0xaa, 0xbb, ...props.data], appliedEdit: request });
+    expect(ref.current.getSelection().caret).toBe(1);
+  });
+
+  it("replaces a backward range with a single decoded paste", () => {
+    const onEdit = vi.fn();
+    const onPasteError = vi.fn();
+    render({ data: [0x11, 0x22, 0x33, 0x44], onEdit, onPasteError, editBehavior: "insert" });
+    act(() => ref.current.setSelectionRange(1, 3, "backward"));
+    paste("A C");
+    expect(onPasteError).toHaveBeenCalledTimes(1);
+    expect(onEdit).not.toHaveBeenCalled();
+    paste("aa bb cc");
+    expect(onEdit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      offset: 1,
+      deleteCount: 2,
+      insert: [0xaa, 0xbb, 0xcc],
+      selectionBefore: expect.objectContaining({ start: 1, end: 3, direction: "backward", caret: 1 }),
+    }));
+    expect(ref.current.getSelection().end).toBe(3);
+  });
+
+  it("reports pane and normalized range changes without duplicate notifications", () => {
+    const onSelectionChange = vi.fn();
+    const props = { onSelectionChange, data: [0x41, 0x42, 0x43] };
+    render(props);
+    expect(onSelectionChange).not.toHaveBeenCalled();
+    act(() => ref.current.setSelectionRange(3, 1));
+    const hex = ref.current.getSelection();
+    expect(hex).toMatchObject({ start: 1, end: 3, direction: "backward", caret: 1 });
+    expect(input().value).toBe("4243");
+    expect(onSelectionChange).toHaveBeenLastCalledWith(hex);
+    key(9);
+    expect(ref.current.getSelection().pane).not.toBe(hex.pane);
+    expect(input().value).toBe("BC");
+    render(props);
+    expect(onSelectionChange).toHaveBeenCalledTimes(2);
+    render({ ...props, data: [] });
+    expect(ref.current.getSelection()).toMatchObject({ start: 0, end: 0, caret: 0, direction: "none" });
+  });
+
+  it("renders the insertion position beyond a full row and clamps it in overwrite mode", () => {
+    const onEdit = vi.fn();
+    const props = { data: new Uint8Array(4), onEdit, editBehavior: "insert" };
+    render(props);
+    act(() => ref.current.setSelectionRange(4));
+    expect(ref.current.getSelection().caret).toBe(4);
+    expect(byte(4).classList.contains("cursor")).toBe(true);
+    render({ ...props, editBehavior: "overwrite" });
+    expect(ref.current.getSelection().caret).toBe(3);
+    expect(byte(4)).toBeNull();
+  });
+
+  it("rejects controlled ASCII paste with characters outside a byte", () => {
+    const onEdit = vi.fn();
+    const onPasteError = vi.fn();
+    render({ onEdit, onPasteError, editBehavior: "insert" });
+    key(9);
+    paste("A€");
+    expect(onPasteError).toHaveBeenCalledTimes(1);
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it("preserves fixed-length range clear as one overwrite operation", () => {
+    const onEdit = vi.fn();
+    render({ onEdit });
+    act(() => ref.current.setSelectionRange(1, 3, "backward"));
+    key(46);
+    expect(onEdit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      offset: 1,
+      deleteCount: 2,
+      insert: [0, 0],
+    }));
+    expect(onSetValue).not.toHaveBeenCalled();
+  });
+
+  it("blocks structural edits and history requests while read-only", () => {
+    const onEdit = vi.fn();
+    const onUndo = vi.fn();
+    const onRedo = vi.fn();
+    const props = { onEdit, onUndo, onRedo, editBehavior: "insert" };
+    render({ ...props, readOnly: true });
+    key(46);
+    paste("AA");
+    key(90, { ctrlKey: true, metaKey: true, key: "z" });
+    key(90, { ctrlKey: true, metaKey: true, shiftKey: true, key: "Z" });
+    expect(onEdit).not.toHaveBeenCalled();
+    expect(onUndo).not.toHaveBeenCalled();
+    expect(onRedo).not.toHaveBeenCalled();
+    render(props);
+    key(90, { ctrlKey: true, metaKey: true, key: "z" });
+    key(90, { ctrlKey: true, metaKey: true, shiftKey: true, key: "Z" });
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(onRedo).toHaveBeenCalledTimes(1);
   });
 });
