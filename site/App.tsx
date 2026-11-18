@@ -32,10 +32,12 @@ export default function App() {
   const [dark, setDark] = useState(false);
   const [mounted, setMounted] = useState(true);
   const [lastWrite, setLastWrite] = useState("none");
+  const [pasteError, setPasteError] = useState("");
   const [focus, setFocus] = useState("blurred");
   const [width, setWidth] = useState(720);
   const editor = useRef<HexEditorHandle>(null);
   const onSetValue = (offset: number, value: number) => {
+    setPasteError("");
     setLastWrite(`${offset}:${value}`);
     if (mutable) {
       overwrite(data, offset, value);
@@ -52,6 +54,7 @@ export default function App() {
   const editorProps = {
     key: variant, ref: editor, data, nonce, showAscii: ascii, showColumnLabels: labels,
     showRowLabels: labels, readOnly, onSetValue,
+    onPasteError: (error: Error) => setPasteError(error.message),
     onFocus: () => setFocus('focused'), onBlur: () => setFocus('blurred'),
     ...(fixedColumns ? { columns: 16, rowHeight: 35 } : {}),
     ...(dark ? { theme: { hexEditor: oneDarkPro } } : {}),
@@ -196,6 +199,7 @@ export default function App() {
               onClick={() => {
                 setData(initialData());
                 setLastWrite("none");
+                setPasteError("");
               }}
             >
               Reset
@@ -222,6 +226,7 @@ export default function App() {
                 .join(" ")}
             </output>
           </div>
+          <p role="status" data-testid="paste-error">{pasteError}</p>
         </section>
         <section id="guide">
           <h2>Use the maintained fork</h2>
@@ -272,14 +277,15 @@ export default function App() {
             . Arrow, Home/End, Page Up/Down, Shift extension and Ctrl/Cmd+A work
             in the active pane. Copy uses the browser’s native selection in the
             editor’s input: contiguous hex pairs or characters. Paste overwrites
-            complete byte pairs in hex mode or characters in ASCII mode, bounded
-            by the remaining buffer.
+            complete byte pairs in hex mode or characters in ASCII mode.
+            Paste that exceeds the remaining buffer is rejected entirely.
           </p>
           <p>
             Editing preserves the buffer length. Typing and paste start at the
             lower bound of a selection, regardless of selection direction, and
-            collapse it after the edit. Typing overwrites one byte; paste
-            overwrites as many bytes as fit, even beyond the selected range.
+            collapse it after an accepted edit. Typing overwrites one byte;
+            paste overwrites all pasted bytes, even beyond the selected range,
+            provided they fit in the remaining buffer.
             Any remaining selected bytes keep their values. Delete and
             Backspace fill the selected range with zeroes and leave the cursor
             at its start. Without a selection, Delete zeroes the current byte
@@ -327,11 +333,20 @@ export default function App() {
           <p>
             The readOnly prop blocks keyboard edits and paste;
             imperative setValue can still request writes. Enforce write policy
-            in your callback. Hex paste discards non-hex
-            characters/unpaired nibbles and truncates at the data end; it does
-            not report rejected input. ASCII input follows the legacy key map
-            and paste can emit values above 255. Cut
-            does not remove source bytes. Structural insertion/deletion, undo
+            in your callback. Hex paste accepts complete byte pairs, contiguous
+            or separated by whitespace (for example ABcd or AB CD). Invalid
+            characters, prefixes, punctuation and incomplete pairs reject the
+            entire paste, preserving bytes, selection and any pending nibble.
+            Use onPasteError(error) to display error.message. Empty or
+            whitespace-only hex input is ignored. Hex and ASCII paste that
+            exceed the remaining buffer, including non-empty paste into empty
+            data, are rejected before any writes. ASCII input follows the legacy key map
+            and paste can emit values above 255. Native ASCII copy maps bytes
+            directly to Unicode characters without UTF-8 decoding; the single-line
+            input strips CR/LF. Hex copy produces contiguous lowercase byte pairs
+            and preserves those bytes. Native cut copies the selection without
+            removing or zeroing source bytes, including in read-only mode. Empty
+            selections leave the clipboard unchanged. Structural insertion/deletion, undo
             history and search are deferred; modernization preserves these
             existing boundaries.
           </p>

@@ -264,3 +264,91 @@ test('automatic editor preserves 16 explicit columns across container widths', a
     await expect(byte(page, 16)).toHaveClass(/cursor/);
   }
 });
+
+for (const pane of ["hex", "ASCII"]) {
+  for (const readOnly of [false, true]) {
+    for (const operation of ["copy", "cut"]) {
+      test(`native ${pane} ${operation}: both directions and empty selection, readOnly=${readOnly}`, async ({ page, context }) => {
+        await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+        if (pane === "ASCII") {
+          await page.getByRole("button", { name: "ASCII sample", exact: true }).click();
+        }
+        await page.getByLabel("Read only", { exact: true }).setChecked(readOnly);
+        const source = pane === "hex" ? "00 01 02 03 04 05 06 07" : "41 42 43 44 45 46 47 48";
+        const text = pane === "hex" ? "010203" : "BCD";
+        const command = `${shortcut}+${operation === "copy" ? "c" : "x"}`;
+        for (const direction of ["forward", "backward"]) {
+          await byte(page, direction === "forward" ? 1 : 4).click();
+          if (pane === "ASCII") await input(page).press("Tab");
+          for (let i = 0; i < 3; i++) {
+            await input(page).press(direction === "forward" ? "Shift+ArrowRight" : "Shift+ArrowLeft");
+          }
+          await expect(input(page)).toHaveValue(text);
+          await input(page).press(command);
+          expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(text);
+          // Native cut currently edits only the input, not the caller-owned bytes (#8/#12).
+          await expect(input(page)).toHaveValue(operation === "cut" ? "" : text);
+          await expect(page.getByTestId("bytes")).toHaveText(source);
+          await expect(page.getByTestId("length")).toHaveText(pane === "hex" ? "259" : "8");
+          await expect(page.getByTestId("write")).toHaveText("none");
+        }
+        await byte(page, 1).click();
+        if (pane === "ASCII") await input(page).press("Tab");
+        await expect(input(page)).toHaveValue("");
+        await page.evaluate(() => navigator.clipboard.writeText("clipboard sentinel"));
+        await input(page).press(command);
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("clipboard sentinel");
+        await expect(page.getByTestId("bytes")).toHaveText(source);
+        await expect(page.getByTestId("write")).toHaveText("none");
+      });
+    }
+  }
+}
+
+for (const [pane, hex, expected] of [
+  ["hex", "0a0d0941", "0a0d0941"],
+  ["ASCII", "4180e9ff", "A\u0080\u00e9\u00ff"],
+  // The single-line input strips CR/LF before native ASCII copy (#12).
+  ["ASCII", "0a0d0941", "\tA"],
+]) {
+  test(`native ${pane} copy representation for bytes ${hex}`, async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await byte(page, 0).click();
+    for (const digit of hex) await input(page).press(digit);
+    if (pane === "ASCII") await input(page).press("Tab");
+    await page.getByRole("button", { name: "Select first four", exact: true }).click();
+    await expect(input(page)).toHaveValue(expected);
+    await input(page).press(`${shortcut}+c`);
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(expected);
+    await expect(page.getByTestId("bytes")).toHaveText(
+      `${hex.match(/../g).join(" ")} 04 05 06 07`,
+    );
+    await expect(page.getByTestId("write")).toHaveText(`3:${parseInt(hex.slice(-2), 16)}`);
+  });
+}
+
+for (const pane of ["hex", "ASCII"]) {
+  test(`native ${pane} paste rejects overflow before writes and accepts an exact fit`, async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.getByRole("button", { name: "ASCII sample", exact: true }).click();
+    await byte(page, 6).click();
+    if (pane === "ASCII") await input(page).press("Tab");
+    await input(page).press("Shift+ArrowRight");
+    const selectedText = pane === "hex" ? "47" : "G";
+    await expect(input(page)).toHaveValue(selectedText);
+    await page.evaluate(text => navigator.clipboard.writeText(text), pane === "hex" ? "AA BB CC" : "XYZ");
+    await input(page).press(`${shortcut}+v`);
+    await expect(page.getByTestId("paste-error")).toHaveText("Paste exceeds the remaining buffer length.");
+    await expect(page.getByTestId("write")).toHaveText("none");
+    await expect(page.getByTestId("bytes")).toHaveText("41 42 43 44 45 46 47 48");
+    await expect(input(page)).toHaveValue(selectedText);
+    await page.evaluate(text => navigator.clipboard.writeText(text), pane === "hex" ? "AA BB" : "XY");
+    await input(page).press(`${shortcut}+v`);
+    await expect(page.getByTestId("bytes")).toHaveText(
+      pane === "hex" ? "41 42 43 44 45 46 aa bb" : "41 42 43 44 45 46 58 59",
+    );
+    await expect(page.getByTestId("paste-error")).toBeEmpty();
+    await expect(byte(page, 7)).toHaveClass(/cursor/);
+    await expect(page.getByTestId("length")).toHaveText("8");
+  });
+}

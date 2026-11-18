@@ -64,6 +64,11 @@ import HexEditorRow from './HexEditorRow';
 import HexEditorContext, { HexEditorContextInterface } from '../contexts/HexEditorContext';
 import HexEditorBody from './HexEditorBody';
 
+// Validate trimmed paste text as complete byte pairs with optional whitespace between pairs.
+const HEX_PASTE_PATTERN = /^(?:[0-9a-f]{2}\s*)+$/i;
+// Extract bytes only after validation so malformed input cannot be silently skipped.
+const HEX_BYTE_PATTERN = /[0-9a-f]{2}/gi;
+
 interface HexEditorState {
   cursorOffset: number,
   editMode: EditModeType,
@@ -118,6 +123,7 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
   onBlur,
   onFocus,
   onItemsRendered,
+  onPasteError,
   onSetValue,
   overscanCount,
   readOnly = false,
@@ -660,16 +666,30 @@ const HexEditor: React.ForwardRefRenderFunction<HexEditorHandle, HexEditorProps>
     const dataLength = data.length;
     const maxOffset = dataLength - selectionStart;
     const clipboardText = e.clipboardData.getData('Text');
+    if (currentEditMode === EDIT_MODE_HEX) {
+      const hexText = clipboardText.trim();
+      if (!hexText) {
+        return;
+      }
+      if (!HEX_PASTE_PATTERN.test(hexText)) {
+        onPasteError?.(new Error(
+          'Invalid hex input. Use complete byte pairs, optionally separated by whitespace—for example, AB CD.',
+        ));
+        return;
+      }
+    }
     const values = currentEditMode === EDIT_MODE_ASCII
       ? clipboardText.split('').map(v => v.charCodeAt(0))
-      : (clipboardText.replace(/[^0-9a-f]/gi, '').match(/.{2}/g) || []).map(v => parseInt(v, 16));
+      : (clipboardText.match(HEX_BYTE_PATTERN) || []).map(v => parseInt(v, 16));
+    if (values.length > maxOffset) {
+      onPasteError?.(new Error('Paste exceeds the remaining buffer length.'));
+      return;
+    }
     values.forEach((value, i) => {
-      if (i < maxOffset) {
-        setValue(selectionStart + i, value);
-      }
+      setValue(selectionStart + i, value);
     });
     setSelectionRange(Math.min(selectionStart + values.length, dataLength - 1));
-  }, [setValue, setSelectionRange]);
+  }, [onPasteError, setValue, setSelectionRange]);
 
   const handleItemsRendered = useCallback((props: ListOnItemsRenderedProps) => {
     setState(props);

@@ -15,6 +15,9 @@ import defaultTheme from "react-hex-editor/themes";
 const ref = React.createRef<HexEditorHandle>();
 const props: AutoSizeHexEditorProps = {
   data: new Uint8Array(100),
+  onPasteError: (error) => {
+    console.log(error.message);
+  },
   onSetValue: (offset, value) => {
     console.log(offset, value);
   },
