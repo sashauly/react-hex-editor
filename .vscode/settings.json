@@ -1,0 +1,22 @@
+{
+  "editor.insertSpaces": true,
+  "editor.tabSize": 2,
+  "files.insertFinalNewline": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "js/ts.experimental.useTsgo": false,
+  "js/ts.tsdk.path": "./node_modules/typescript/lib",
+  "js/ts.tsdk.promptToUseWorkspaceVersion": true,
+  "js/ts.tsc.autoDetect": "off",
+  "vitest.rootConfig": "vitest.config.mjs",
+  "files.watcherExclude": {
+    ".compat/**": true,
+    "artifacts/**": true,
+    "dist/**": true,
+    "playwright-report/**": true,
+    "site-dist/**": true,
+    "test-results/**": true,
+    "themes/**": true
+  }
+}

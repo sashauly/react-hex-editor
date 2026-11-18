@@ -20,7 +20,7 @@
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.site.json",
+    "typecheck": "tsc --noEmit && tsc -p site",
     "lint": "eslint .",
     "test": "vitest run",
     "build": "npm run clean && vite build && tsc -p tsconfig.build.json && node scripts/finish-build.mjs",

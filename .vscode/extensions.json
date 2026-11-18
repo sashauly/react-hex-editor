@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "vitest.explorer",
+    "github.vscode-github-actions",
+    "ms-playwright.playwright"
+  ]
+}
