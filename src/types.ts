@@ -22,6 +22,27 @@ export type SelectionDirectionType = (
   | typeof SELECTION_DIRECTION_NONE
 );
 
+/** When controlled edits are enabled, determines how typing, paste and deletion affect length. */
+export type HexEditorEditBehavior = 'overwrite' | 'insert';
+
+/** The current half-open range, caret and active pane. */
+export interface HexEditorSelection {
+  readonly start: number,
+  readonly end: number,
+  readonly direction: SelectionDirectionType,
+  readonly caret: number,
+  readonly pane: EditModeType,
+};
+
+/** One completed, atomic replacement of bytes in the data supplied to the editor. */
+export interface HexEditorEdit {
+  readonly offset: number,
+  readonly deleteCount: number,
+  readonly insert: readonly number[],
+  readonly selectionBefore: HexEditorSelection,
+  readonly selectionAfter: HexEditorSelection,
+};
+
 export type SetSelectionBoundaryCallback = (
   offset: number,
   editMode?: EditModeType,
@@ -48,6 +69,12 @@ export interface BaseHexEditorProps {
   classNames?: HexEditorClassNames,
   /** Caller-owned bytes. Mutating this buffer requires updating `nonce`. */
   data: Uint8Array | number[],
+  /** Echo the same accepted request alongside its updated data. Only the latest request
+   * can advance the selection, and intervening navigation takes precedence.
+   */
+  appliedEdit?: HexEditorEdit,
+  /** Defaults to fixed-length overwrite. Insert behavior requires onEdit. */
+  editBehavior?: HexEditorEditBehavior,
   formatValue?: ValueFormatter,
   inlineStyles?: HexEditorInlineStyles,
   highlightColumn?: boolean,
@@ -56,23 +83,31 @@ export interface BaseHexEditorProps {
   nonce?: number | string,
   onBlur?: (e: React.FocusEvent) => void,
   onFocus?: (e: React.FocusEvent) => void,
+  /** Receives completed keyboard and clipboard edits. The owner applies or rejects each request. */
+  onEdit?: (edit: HexEditorEdit) => void,
+  /** Fires when the selection or active pane changes. Read initial state with getSelection(). */
+  onSelectionChange?: (selection: HexEditorSelection) => void,
+  /** Invoked by the platform undo shortcut. The owner restores data and selection. */
+  onUndo?: () => void,
+  /** Invoked by the platform redo shortcut. The owner restores data and selection. */
+  onRedo?: () => void,
   /** Called once with an Error containing a default English message for malformed hex or paste overflow.
    * Hex accepts complete byte pairs (case-insensitive), with optional whitespace
    * between pairs and at the edges. Invalid characters or incomplete pairs reject
    * the entire paste without changing bytes, selection or a pending nibble.
-   * Hex and ASCII paste that exceed the remaining buffer length are rejected
-   * before any writes, including paste into empty data. Empty/whitespace-only hex
-   * paste is ignored. Read-only paste does not call this callback.
+   * Overwrite paste that exceeds the remaining buffer length is rejected before any
+   * writes. With onEdit, ASCII paste accepts only code units U+0000 through U+00FF.
+   * Empty/whitespace-only Hex paste is ignored. Read-only paste does not call this callback.
    */
   onPasteError?: (error: Error) => void,
   /** Requests an in-bounds byte overwrite; the caller must accept it into data and re-render.
    * Range edits start at the lower bound. Delete/Backspace zero the selected bytes.
-   * Editing never inserts or removes bytes.
+   * When onEdit is provided, keyboard and clipboard edits use it instead.
    */
   onSetValue?: (offset: number, value: number) => void,
   onItemsRendered?: (props: ListOnItemsRenderedProps) => void,
   overscanCount?: number,
-  /** Blocks keyboard and paste writes. Imperative setValue can still request writes. */
+  /** Blocks keyboard and clipboard edits and history shortcuts. Imperative setValue can still request writes. */
   readOnly?: boolean,
   showAscii?: boolean,
   showColumnLabels?: boolean,
@@ -109,16 +144,18 @@ export interface HexEditorProps extends BaseHexEditorProps {
 export interface HexEditorHandle {
   blur(): void,
   focus(): void,
+  getSelection(): HexEditorSelection,
   scrollTo(scrollTop: number): void,
   scrollToItem(rowIndex: number, align?: Align): void,
   /** Select a range with an exclusive end. A collapsed range is the cursor.
-   * Typing and paste overwrite from the lower bound, regardless of direction.
+   * Insert behavior permits a caret at data.length. Overwrite clamps to the last byte.
    */
   setSelectionRange(
     start: number | null,
     end?: number | null,
     direction?: SelectionDirectionType | null,
     takeFocus?: boolean,
+    pane?: EditModeType,
   ): void,
   /** Request an overwrite. Offsets outside data or non-integer offsets are ignored. */
   setValue(offset: number, value: number): void,

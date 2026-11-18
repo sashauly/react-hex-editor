@@ -229,7 +229,7 @@ const HexEditorRow = ({
 
             let value = null;
             if (offset < data.length) {
-              value = isCursor && nybbleHigh != null
+              value = offset === selectionStart && nybbleHigh != null
                 ? (nybbleHigh << 4) | (0x0f & data[offset])
                 : data[offset];
             }

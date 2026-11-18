@@ -1,18 +1,21 @@
 import exampleSource from './Example.tsx?raw';
-import React, { useRef, useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import HexEditor, {
   BaseHexEditor,
   UnstyledHexEditor,
   UnstyledBaseHexEditor,
 } from "react-hex-editor";
-import type { HexEditorHandle } from "react-hex-editor";
+import type { HexEditorEdit, HexEditorHandle, HexEditorSelection } from "react-hex-editor";
 import oneDarkPro from "react-hex-editor/themes/oneDarkPro";
+
+type Buffer = Uint8Array | number[];
+type HistoryEntry = { edit: HexEditorEdit, before: Buffer, after: Buffer };
 
 const initialData = () => Uint8Array.from({ length: 259 }, (_, i) => i & 255);
 
 // The mutable example deliberately exercises caller-owned buffers plus nonce.
 function overwrite(
-  buffer: Uint8Array | number[],
+  buffer: Buffer,
   offset: number,
   value: number,
 ) {
@@ -21,7 +24,10 @@ function overwrite(
 
 /** The live guide example also serves as the packaged React/browser fixture. */
 export default function App() {
-  const [data, setData] = useState<Uint8Array | number[]>(initialData);
+  const [data, setData] = useState<Buffer>(initialData);
+  const [editing, setEditing] = useState<"legacy" | "overwrite" | "insert">("legacy");
+  const [appliedEdit, setAppliedEdit] = useState<HexEditorEdit>();
+  const [selection, setSelection] = useState<HexEditorSelection>();
   const [nonce, setNonce] = useState(0);
   const [fixedColumns, setFixedColumns] = useState(false);
   const [mutable, setMutable] = useState(false);
@@ -36,9 +42,57 @@ export default function App() {
   const [focus, setFocus] = useState("blurred");
   const [width, setWidth] = useState(720);
   const editor = useRef<HexEditorHandle>(null);
+  const history = useRef<{ undo: HistoryEntry[], redo: HistoryEntry[] }>({ undo: [], redo: [] });
+  const restoreSelection = useRef<HexEditorSelection>();
+  useLayoutEffect(() => {
+    const restore = restoreSelection.current;
+    if (restore) {
+      restoreSelection.current = undefined;
+      editor.current?.setSelectionRange(restore.start, restore.end, restore.direction, false, restore.pane);
+    }
+  }, [data]);
+
+  const clearHistory = () => {
+    history.current = { undo: [], redo: [] };
+    setAppliedEdit(undefined);
+  };
+  const replaceData = (next: Buffer) => {
+    clearHistory();
+    setData(next);
+  };
+  const onEdit = (edit: HexEditorEdit) => {
+    const { offset, deleteCount, insert } = edit;
+    const end = offset + deleteCount;
+    let next: Buffer;
+    if (data instanceof Uint8Array) {
+      next = new Uint8Array(data.length - deleteCount + insert.length);
+      next.set(data.subarray(0, offset));
+      next.set(insert, offset);
+      next.set(data.subarray(end), offset + insert.length);
+    } else {
+      next = data.slice(0, offset).concat(insert, data.slice(end));
+    }
+    history.current.undo.push({ edit, before: data, after: next });
+    history.current.redo.length = 0;
+    setAppliedEdit(edit);
+    setData(next);
+    setPasteError("");
+    setLastWrite(`${offset}: +${insert.length} −${deleteCount}`);
+  };
+  const navigateHistory = (action: "undo" | "redo") => {
+    const entry = history.current[action].pop();
+    if (entry) {
+      const undo = action === "undo";
+      history.current[undo ? "redo" : "undo"].push(entry);
+      restoreSelection.current = undo ? entry.edit.selectionBefore : entry.edit.selectionAfter;
+      setAppliedEdit(undefined);
+      setData(undo ? entry.before : entry.after);
+    }
+  };
   const onSetValue = (offset: number, value: number) => {
     setPasteError("");
     setLastWrite(`${offset}:${value}`);
+    clearHistory();
     if (mutable) {
       overwrite(data, offset, value);
       setNonce((n) => n + 1);
@@ -53,7 +107,11 @@ export default function App() {
   const geometry = { columns: 16, rows: 10, width, height: 260, rowHeight: 24 };
   const editorProps = {
     key: variant, ref: editor, data, nonce, showAscii: ascii, showColumnLabels: labels,
-    showRowLabels: labels, readOnly, onSetValue,
+    showRowLabels: labels, readOnly, onSetValue, onSelectionChange: setSelection,
+    ...(editing === "legacy" ? {} : {
+      appliedEdit, editBehavior: editing, onEdit,
+      onUndo: () => navigateHistory("undo"), onRedo: () => navigateHistory("redo"),
+    }),
     onPasteError: (error: Error) => setPasteError(error.message),
     onFocus: () => setFocus('focused'), onBlur: () => setFocus('blurred'),
     ...(fixedColumns ? { columns: 16, rowHeight: 35 } : {}),
@@ -103,6 +161,21 @@ export default function App() {
                 <option value="styled-base">Styled · explicit</option>
                 <option value="unstyled-auto">Unstyled · automatic</option>
                 <option value="unstyled-base">Unstyled · explicit</option>
+              </select>
+            </label>
+            <label>
+              Editing{" "}
+              <select
+                aria-label="Editing"
+                value={editing}
+                onChange={e => {
+                  clearHistory();
+                  setEditing(e.target.value as typeof editing);
+                }}
+              >
+                <option value="legacy">Fixed-length overwrite</option>
+                <option value="overwrite">Overwrite with undo</option>
+                <option value="insert">Insert with undo</option>
               </select>
             </label>
             <label>
@@ -197,18 +270,18 @@ export default function App() {
             </button>
             <button
               onClick={() => {
-                setData(initialData());
+                replaceData(initialData());
                 setLastWrite("none");
                 setPasteError("");
               }}
             >
               Reset
             </button>
-            <button onClick={() => setData(new Uint8Array(1_000_001))}>
+            <button onClick={() => replaceData(new Uint8Array(1_000_001))}>
               Large buffer
             </button>
-            <button onClick={() => setData(Uint8Array.from([65,66,67,68,69,70,71,72]))}>ASCII sample</button>
-            <button onClick={() => setData(Array.from(data))}>
+            <button onClick={() => replaceData(Uint8Array.from([65,66,67,68,69,70,71,72]))}>ASCII sample</button>
+            <button onClick={() => replaceData(Array.from(data))}>
               Use number array
             </button>
             <button onClick={() => setMounted((v) => !v)}>
@@ -226,6 +299,11 @@ export default function App() {
                 .join(" ")}
             </output>
           </div>
+          {editing !== "legacy" && selection && (
+            <p className="status" data-testid="selection">
+              {selection.pane} · caret {selection.caret} · {selection.end - selection.start} selected
+            </p>
+          )}
           <p role="status" data-testid="paste-error">{pasteError}</p>
         </section>
         <section id="guide">
@@ -255,6 +333,17 @@ export default function App() {
           <pre>
             <code>{exampleSource}</code>
           </pre>
+          <h3>Insert and undo</h3>
+          <p>
+            Use <code>onEdit</code> to receive a complete byte replacement.
+            Supply the updated <code>data</code> and echo that request as{" "}
+            <code>appliedEdit</code> to advance the caret. Set{" "}
+            <code>editBehavior="insert"</code> to insert at the caret or
+            replace a selection. Delete, Backspace and Cut can remove bytes.
+            Offset zero works in an empty buffer, and the caret can append at
+            the end. Use <code>onUndo</code> and <code>onRedo</code> to connect
+            keyboard shortcuts to your application's history.
+          </p>
           <h3>Components and sizing</h3>
           <p>
             The default export is the styled automatic editor.{" "}
@@ -271,8 +360,9 @@ export default function App() {
           <p>
             All variants forward a <code>HexEditorHandle</code>: focus, blur,
             scrollTo(pixelOffset), scrollToItem(rowIndex, align?),
-            setSelectionRange(start, end?, direction?, takeFocus?), and
-            setValue(offset, value). Selection ends are exclusive; directions
+            getSelection(), setSelectionRange(start, end?, direction?, takeFocus?, pane?),
+            and setValue(offset, value). Use onSelectionChange to observe the
+            range, direction, caret and pane. Selection ends are exclusive; directions
             are <code>forward</code>, <code>backward</code> or <code>none</code>
             . Arrow, Home/End, Page Up/Down, Shift extension and Ctrl/Cmd+A work
             in the active pane. Copy uses the browser’s native selection in the
@@ -281,7 +371,7 @@ export default function App() {
             Paste that exceeds the remaining buffer is rejected entirely.
           </p>
           <p>
-            Editing preserves the buffer length. Typing and paste start at the
+            Overwrite editing preserves the buffer length. Typing and paste start at the
             lower bound of a selection, regardless of selection direction, and
             collapse it after an accepted edit. Typing overwrites one byte;
             paste overwrites all pasted bytes, even beyond the selected range,
@@ -293,7 +383,7 @@ export default function App() {
             With Shift held, either key zeroes the current byte without moving.
             Either key cancels a pending hex digit without writing. Invalid
             write offsets are ignored, including Backspace before byte zero
-            and all writes to an empty buffer.
+            and attempts to overwrite an empty buffer.
           </p>
           <h3>Mutable data</h3>
           <p>
@@ -331,24 +421,21 @@ export default function App() {
           </p>
           <h3>Known limitations</h3>
           <p>
-            The readOnly prop blocks keyboard edits and paste;
+            The readOnly prop blocks keyboard and clipboard edits and undo/redo;
             imperative setValue can still request writes. Enforce write policy
             in your callback. Hex paste accepts complete byte pairs, contiguous
             or separated by whitespace (for example ABcd or AB CD). Invalid
             characters, prefixes, punctuation and incomplete pairs reject the
             entire paste, preserving bytes, selection and any pending nibble.
             Use onPasteError(error) to display error.message. Empty or
-            whitespace-only hex input is ignored. Hex and ASCII paste that
-            exceed the remaining buffer, including non-empty paste into empty
-            data, are rejected before any writes. ASCII input follows the legacy key map
-            and paste can emit values above 255. Native ASCII copy maps bytes
+            whitespace-only hex input is ignored. In overwrite mode, Hex and
+            ASCII paste must fit the remaining buffer. Controlled ASCII paste
+            accepts code units U+0000 through U+00FF. Native ASCII copy maps bytes
             directly to Unicode characters without UTF-8 decoding; the single-line
             input strips CR/LF. Hex copy produces contiguous lowercase byte pairs
-            and preserves those bytes. Native cut copies the selection without
-            removing or zeroing source bytes, including in read-only mode. Empty
-            selections leave the clipboard unchanged. Structural insertion/deletion, undo
-            history and search are deferred; modernization preserves these
-            existing boundaries.
+            and preserves those bytes. Cut copies the selection and requests removal
+            in writable insert mode. In overwrite and read-only modes, Cut leaves
+            the bytes intact. Empty selections leave the clipboard unchanged.
           </p>
         </section>
       </main>
